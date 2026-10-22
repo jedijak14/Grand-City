@@ -1,0 +1,43 @@
+# Unreal Engine generated/build output (never source controlled)
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.user
+*.userprefs
+*.tmp
+*.log
+*.pdb
+*.obj
+*.pch
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.app
+*.dSYM/
+
+# Unreal autosaves and local editor state
+Autosaves/
+Crashes/
+LocalDerivedDataCache/
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+
+# Packaging/cook outputs
+Releases/
+Package/
+Packaging/
+
+# Python caches
+__pycache__/
+*.py[cod]

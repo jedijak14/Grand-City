@@ -30,9 +30,6 @@ public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Grand City|FX")
 	bool bClothAndHairPhysics = true;
 
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Grand City|Audio")
-	float MasterVolume = 0.9f;
-
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Grand City|World", meta = (ClampMin = "0", ClampMax = "60"))
 	int32 TrafficDensity = 14;
 

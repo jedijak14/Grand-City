@@ -1,0 +1,18 @@
+# Keep binary model assets out of ordinary Git history.
+ModelLibrary/** filter=lfs diff=lfs merge=lfs -text
+
+# Unreal map and cooked asset binaries are also stored via LFS when added.
+*.umap filter=lfs diff=lfs merge=lfs -text
+*.uasset filter=lfs diff=lfs merge=lfs -text
+*.ubulk filter=lfs diff=lfs merge=lfs -text
+*.uexp filter=lfs diff=lfs merge=lfs -text
+
+# Preserve text formats and normalize source/document line endings.
+*.h text eol=lf
+*.cpp text eol=lf
+*.cs text eol=lf
+*.ini text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.uproject text eol=lf

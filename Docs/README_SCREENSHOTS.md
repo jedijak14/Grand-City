@@ -1,9 +1,9 @@
 # Screenshots — what is real and what is a target
 
 ## `REALMODEL_*.png` — REAL renders of the included models
-Produced headless from the actual `.glb` files in `ModelLibrary/PublicGLB/` with
-`Tools/RenderModelPreviews_Offline.py` (trimesh + pyrender). These are accurate
-previews of the assets you'll import — not gameplay.
+These are labeled as renders of included model assets, not in-game screenshots. The offline
+preview-generation script mentioned in earlier project notes is not present in this source tree;
+these image files are included under `Docs/Screenshots/`.
 
 Current set: buggy, groundvehicle, cesiumair (passenger turboprop — used for the
 airliner), babyloncar, soldier, village, milktruck, aerobatic, xbot, fox, horse.
