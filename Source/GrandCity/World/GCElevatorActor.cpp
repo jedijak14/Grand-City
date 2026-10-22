@@ -1,6 +1,8 @@
 #include "World/GCElevatorActor.h"
 
+#include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
+#include "GameFramework/Pawn.h"
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -56,6 +58,16 @@ AGCElevatorActor::AGCElevatorActor()
 	BackCabinWall->SetRelativeLocation(FVector(0.0f, -75.0f, 120.0f));
 	BackCabinWall->SetMobility(EComponentMobility::Movable);
 	BackCabinWall->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+
+	DoorSafetySensor = CreateDefaultSubobject<UBoxComponent>(TEXT("DoorSafetySensor"));
+	DoorSafetySensor->SetupAttachment(SceneRoot);
+	DoorSafetySensor->SetBoxExtent(FVector(85.0f, 22.0f, 115.0f));
+	DoorSafetySensor->SetRelativeLocation(FVector(0.0f, 92.0f, 120.0f));
+	DoorSafetySensor->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	DoorSafetySensor->SetCollisionObjectType(ECC_WorldDynamic);
+	DoorSafetySensor->SetCollisionResponseToAllChannels(ECR_Ignore);
+	DoorSafetySensor->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	DoorSafetySensor->SetGenerateOverlapEvents(true);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (Cube.Succeeded())
@@ -165,6 +177,16 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 		break;
 
 	case EGCElevatorState::ClosingDoors:
+		if (DoorSafetySensor)
+		{
+			TArray<AActor*> Obstructions;
+			DoorSafetySensor->GetOverlappingActors(Obstructions, APawn::StaticClass());
+			if (!Obstructions.IsEmpty())
+			{
+				State = EGCElevatorState::OpeningDoors;
+				break;
+			}
+		}
 		SetDoorAlpha(DoorAlpha - SafeDoorSpeed * SafeDelta / FMath::Max(30.0f, DoorOpenDistanceCm));
 		if (DoorAlpha <= 0.001f)
 		{

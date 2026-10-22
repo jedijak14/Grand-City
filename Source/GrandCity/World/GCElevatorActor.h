@@ -5,6 +5,7 @@
 #include "GCElevatorActor.generated.h"
 
 class ACharacter;
+class UBoxComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 
@@ -49,6 +50,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator")
 	UStaticMeshComponent* BackCabinWall;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator|Safety")
+	UBoxComponent* DoorSafetySensor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Elevator|Motion", meta = (ClampMin = "100.0", ClampMax = "600.0"))
 	float TravelSpeedCmPerSecond = 300.0f;

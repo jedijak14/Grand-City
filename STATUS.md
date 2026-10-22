@@ -12,8 +12,9 @@
   bounded stylized wake height, slope, and velocity to physics samples and the harbor mesh.
 - `AGCEscalatorActor` circulates instanced treads and gives grounded characters upward movement in
   its ride zone. The starter-map script places two blockout escalators beside airport test markers.
-- `AGCElevatorActor` now runs a one-car lobby-to-roof cycle with a boarding dwell, animated split
-  doors, collision walls, a moving floor, and two linked interaction landings in the starter map.
+- `AGCElevatorActor` now runs a one-car lobby-to-roof cycle with caller-floor pickup, a boarding dwell,
+  animated split doors, a doorway obstruction sensor, collision walls, a moving floor, and two linked
+  interaction landings in the starter map.
 - The harbor look-development builder adds a coastal boulevard and procedural facades/props,
   player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile.
 - `Tools/CreateGrandCityArdenGT.py` generates a 176k-triangle original static vehicle prototype.
