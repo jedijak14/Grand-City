@@ -1,0 +1,208 @@
+#include "World/GCLocationActor.h"
+#include "Character/GCCharacter.h"
+#include "Character/GCPedestrian.h"
+#include "Components/BoxComponent.h"
+#include "Components/GCHealthComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Core/GCPlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
+#include "Vehicle/GCBoatPawn.h"
+#include "World/GCComputerTerminalActor.h"
+
+AGCLocationActor::AGCLocationActor()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Trigger = CreateDefaultSubobject<UBoxComponent>(TEXT("Trigger"));
+	RootComponent = Trigger;
+	Trigger->SetBoxExtent(FVector(450.0f, 450.0f, 260.0f));
+	Trigger->SetCollisionProfileName(TEXT("Trigger"));
+
+	BuildingMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BuildingMesh"));
+	BuildingMesh->SetupAttachment(Trigger);
+
+	SignMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SignMesh"));
+	SignMesh->SetupAttachment(Trigger);
+	SignMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 420.0f));
+	SignMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	RentalBoatClass = AGCBoatPawn::StaticClass();
+}
+
+void AGCLocationActor::BeginPlay()
+{
+	Super::BeginPlay();
+	ApplyDefaultTexts();
+	Trigger->OnComponentBeginOverlap.AddDynamic(this, &AGCLocationActor::OnTriggerBegin);
+	Trigger->OnComponentEndOverlap.AddDynamic(this, &AGCLocationActor::OnTriggerEnd);
+}
+
+void AGCLocationActor::ApplyDefaultTexts()
+{
+	auto SetIfEmpty = [](FText& Field, const TCHAR* Value)
+	{
+		if (Field.IsEmpty())
+		{
+			Field = FText::FromString(Value);
+		}
+	};
+	switch (LocationType)
+	{
+	case EGCLocationType::Hospital:
+		SetIfEmpty(DisplayName, TEXT("Central Hospital"));
+		SetIfEmpty(InteractionText, TEXT("Get treated ($200)"));
+		break;
+	case EGCLocationType::Shop:
+		SetIfEmpty(DisplayName, TEXT("24/7 Store"));
+		SetIfEmpty(InteractionText, TEXT("Rob the till"));
+		break;
+	case EGCLocationType::PoliceStation:
+		SetIfEmpty(DisplayName, TEXT("Police Station"));
+		SetIfEmpty(InteractionText, TEXT("Surrender & pay fines"));
+		break;
+	case EGCLocationType::Airport:
+		SetIfEmpty(DisplayName, TEXT("International Airport"));
+		SetIfEmpty(InteractionText, TEXT("Book flight ($350)"));
+		break;
+	case EGCLocationType::Marina:
+		SetIfEmpty(DisplayName, TEXT("Marina"));
+		SetIfEmpty(InteractionText, TEXT("Rent a boat ($150)"));
+		break;
+	case EGCLocationType::SkyscraperElevator:
+		SetIfEmpty(DisplayName, TEXT("Tower Elevator"));
+		SetIfEmpty(InteractionText, TEXT("Take elevator to the roof"));
+		break;
+	}
+}
+
+void AGCLocationActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& Hit)
+{
+	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
+	{
+		Character->SetCurrentLocation(this);
+	}
+}
+
+void AGCLocationActor::OnTriggerEnd(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
+	{
+		if (Character->CurrentLocation == this)
+		{
+			Character->SetCurrentLocation(nullptr);
+		}
+	}
+}
+
+void AGCLocationActor::Interact(AGCCharacter* Character)
+{
+	if (!Character)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Character->GetController());
+	AGCPlayerState* PS = PC ? PC->GetPlayerState<AGCPlayerState>() : nullptr;
+
+	switch (LocationType)
+	{
+	case EGCLocationType::Hospital:
+		if (!PS || PS->SpendMoney(HealCost))
+		{
+			Character->Health->Heal(Character->Health->MaxHealth);
+		}
+		break;
+
+	case EGCLocationType::Shop:
+	{
+		const float Now = GetWorld()->GetTimeSeconds();
+		if (Now < NextRobTime)
+		{
+			return; // till is empty / heat is on
+		}
+		NextRobTime = Now + RobCooldownSeconds;
+		if (PS)
+		{
+			PS->AddMoney(FMath::RandRange(RobRewardMin, RobRewardMax));
+			PS->AddWantedStars(2);
+		}
+		// Civilians nearby run for it.
+		TArray<AActor*> Nearby;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGCPedestrian::StaticClass(), Nearby);
+		for (AActor* Actor : Nearby)
+		{
+			if (AGCPedestrian* Ped = Cast<AGCPedestrian>(Actor))
+			{
+				if (!Ped->bIsPolice && FVector::Distance(Ped->GetActorLocation(), GetActorLocation()) < 2000.0f)
+				{
+					Ped->FleeFrom(Character->GetActorLocation());
+				}
+			}
+		}
+		break;
+	}
+
+	case EGCLocationType::PoliceStation:
+		if (PS)
+		{
+			PS->SpendMoney(300 * FMath::Max(1, PS->WantedStars));
+			PS->ClearWanted();
+		}
+		break;
+
+	case EGCLocationType::Airport:
+	{
+		// If this level has proper check-in computers, the full ticket flow lives there.
+		bool bHasComputers = false;
+		for (TActorIterator<AGCComputerTerminalActor> It(GetWorld()); It; ++It)
+		{
+			bHasComputers = true;
+			break;
+		}
+		if (bHasComputers)
+		{
+			Character->ShowSubtitle(PS && PS->HasActiveTicket() && PS->ActiveTicket.Status == EGCTicketStatus::CheckedIn
+				? TEXT("You're checked in — head to the aircraft at the gate and press F to board.")
+				: TEXT("Use the check-in computers in the terminal to book and check in."), 5.0f);
+			break;
+		}
+		// Legacy quick-flight fallback for maps without terminals/airliners.
+		if (FlightDestination && PS && PS->SpendMoney(FlightCost))
+		{
+			// Booked passenger flight (cutaway). Piloting your own plane is the other way there.
+			if (PC)
+			{
+				PC->ClientSetCameraFade(true, FColor::Black, FVector2D(0.0f, 1.0f), 0.4f, true);
+			}
+			const FVector DestLoc = FlightDestination->GetActorLocation()
+				+ FlightDestination->GetActorForwardVector() * 500.0f + FVector(0, 0, 140.0f);
+			Character->SetActorLocation(DestLoc, false, nullptr, ETeleportType::TeleportPhysics);
+			if (PC)
+			{
+				PC->ClientSetCameraFade(false, FColor::Black, FVector2D(1.0f, 0.0f), 1.2f, false);
+			}
+		}
+		break;
+	}
+
+	case EGCLocationType::Marina:
+		if (RentalBoatClass && PS && PS->SpendMoney(BoatRentalCost))
+		{
+			const FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 900.0f + FVector(0, 0, 60.0f);
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			GetWorld()->SpawnActor<AGCBoatPawn>(RentalBoatClass, SpawnLoc, GetActorRotation(), Params);
+		}
+		break;
+
+	case EGCLocationType::SkyscraperElevator:
+		if (TeleportDestination)
+		{
+			Character->SetActorLocation(TeleportDestination->GetActorLocation() + FVector(0, 0, 120.0f),
+				false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		break;
+	}
+}
