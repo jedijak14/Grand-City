@@ -12,6 +12,7 @@ class USceneComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class AGCCharacter;
+class AGCOceanManager;
 
 /** Boat with multi-point buoyancy sampled from the shared ocean wave field. */
 UCLASS(Blueprintable)
@@ -101,7 +102,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Boat")
 	void BeginExit();
 
+protected:
+	virtual void BeginPlay() override;
+
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<AGCOceanManager> OceanManager = nullptr;
+
 	UPROPERTY()
 	AGCCharacter* DriverCharacter = nullptr;
 

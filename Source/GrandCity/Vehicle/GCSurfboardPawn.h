@@ -10,6 +10,7 @@ class UStaticMeshComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class AGCCharacter;
+class AGCOceanManager;
 
 UENUM(BlueprintType)
 enum class EGCSurfMode : uint8
@@ -33,6 +34,7 @@ class GRANDCITY_API AGCSurfboardPawn : public APawn
 public:
 	AGCSurfboardPawn();
 
+	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -91,6 +93,9 @@ public:
 	FString GetModeText() const;
 
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<AGCOceanManager> OceanManager = nullptr;
+
 	UPROPERTY()
 	AGCCharacter* Rider = nullptr;
 

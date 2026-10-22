@@ -22,9 +22,13 @@ struct FGCOceanSample
 	UPROPERTY(BlueprintReadOnly)
 	float VerticalVelocity = 0.0f;
 
-	/** Horizontal surface current (cm/s). */
+	/** Horizontal background ocean current (cm/s). */
 	UPROPERTY(BlueprintReadOnly)
 	FVector Current = FVector::ZeroVector;
+
+	/** Combined horizontal current and wave-orbital velocity (cm/s). */
+	UPROPERTY(BlueprintReadOnly)
+	FVector SurfaceVelocity = FVector::ZeroVector;
 
 	/** 0-1 foam/whitecap factor on crests (for materials & spray FX). */
 	UPROPERTY(BlueprintReadOnly)
@@ -57,6 +61,9 @@ public:
 
 	/** Pure wave function: XY in cm, time in seconds. Returns height offset in cm around 0. */
 	static float GetWaveHeightAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale);
+
+	/** Analytic wave-surface velocity (cm/s), including the background current. */
+	static FVector GetSurfaceVelocityAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale);
 
 	static FVector GetWaveNormalAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale);
 

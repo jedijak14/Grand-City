@@ -25,4 +25,7 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UProgressBar> ProgressBar;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UTextBlock> ProgressLabel;
 };

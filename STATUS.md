@@ -5,12 +5,16 @@
 - The current project tree is being normalized to an Unreal Engine C++ layout: module code in
   `Source/GrandCity/`, targets in `Source/`, engine INI files in `Config/`, and external starter
   assets in `ModelLibrary/`, `AudioVoice/`, and `AudioSFX/`.
-- Native UI source files now exist for the HUD, main menu, settings, and loading screen. These
-  were referenced by the uploaded controller/game-mode code but were missing from the upload.
+- Native UI source files now exist for the HUD, main menu, settings, and loading screen. The
+  loading overlay now includes a self-contained skyline, branded streaming card, tip, and
+  progress percentage. `Docs/LoadingScreenConcept.png` is a visual concept, not an Unreal capture.
+- Ocean queries now provide analytic wave normals, vertical and horizontal orbital velocities,
+  and boats, swimmers, and boards use the nearest ocean manager's world height/amplitude.
 - The `.uproject` parses as valid JSON and targets Unreal Engine 5.4. ProceduralMeshComponent
   and Water remain enabled; ChaosVehicles remains deliberately disabled.
 - The current code inventory is 32 `.cpp` files and 34 headers after adding the missing UI
-  module files. The repository contains 15 GLB models, 20 voice WAVs, and 17 SFX WAVs.
+  module files. The uploaded tree has 15 public GLBs, 20 voice WAVs, and 17 SFX WAVs. A new
+  176k-triangle original vehicle prototype GLB is generated locally by `Tools/CreateGrandCityArdenGT.py`; it is not yet committed through Git LFS.
 - `.gitignore` excludes Unreal-generated/build output. `.gitattributes` marks model and Unreal
   binary assets for Git LFS.
 

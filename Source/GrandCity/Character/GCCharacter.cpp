@@ -72,6 +72,16 @@ AGCCharacter::AGCCharacter()
 void AGCCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	float NearestOceanDistanceSq = TNumericLimits<float>::Max();
+	for (TActorIterator<AGCOceanManager> It(GetWorld()); It; ++It)
+	{
+		const float DistanceSq = FVector::DistSquared2D(GetActorLocation(), It->GetActorLocation());
+		if (DistanceSq < NearestOceanDistanceSq)
+		{
+			NearestOceanDistanceSq = DistanceSq;
+			OceanManager = *It;
+		}
+	}
 	if (Health)
 	{
 		Health->OnDeath.AddDynamic(this, &AGCCharacter::OnDeath);
@@ -362,9 +372,11 @@ void AGCCharacter::ScanForInteractables()
 void AGCCharacter::UpdateSwimming()
 {
 	UCharacterMovementComponent* Move = GetCharacterMovement();
-	const float WaveZ = AGCOceanManager::GetWaveHeightAt(
-		FVector2D(GetActorLocation().X, GetActorLocation().Y),
-		GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f, 1.0f);
+	const FGCOceanSample WaterSample = OceanManager
+		? OceanManager->SampleOcean(GetActorLocation())
+		: AGCOceanManager::SampleOceanStatic(FVector2D(GetActorLocation().X, GetActorLocation().Y),
+			GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f, 1.0f);
+	const float WaveZ = WaterSample.Height;
 
 	const bool bBelowSurface = GetActorLocation().Z < WaveZ + 30.0f;
 	if (bBelowSurface && Move->MovementMode != MOVE_Swimming)
@@ -391,7 +403,8 @@ void AGCCharacter::UpdateSwimming()
 	{
 		// Bob with the same wave field the boats use.
 		FVector Vel = Move->Velocity;
-		Vel.Z = FMath::Clamp((WaveZ + 40.0f - GetActorLocation().Z) * 2.0f, -120.0f, 120.0f);
+		Vel.Z = FMath::Clamp((WaveZ + 40.0f - GetActorLocation().Z) * 2.0f
+			+ WaterSample.VerticalVelocity, -120.0f, 120.0f);
 		Move->Velocity.Z = Vel.Z;
 		LastFallSpeed = 0.0f; // water breaks your fall
 	}

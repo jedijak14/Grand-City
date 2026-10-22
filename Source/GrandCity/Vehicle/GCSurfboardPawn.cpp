@@ -5,6 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -50,6 +51,21 @@ AGCSurfboardPawn::AGCSurfboardPawn()
 	ChaseCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ChaseCamera"));
 	ChaseCamera->SetupAttachment(ChaseArm);
 	ChaseCamera->FieldOfView = 72.0f;
+}
+
+void AGCSurfboardPawn::BeginPlay()
+{
+	Super::BeginPlay();
+	float NearestDistanceSq = TNumericLimits<float>::Max();
+	for (TActorIterator<AGCOceanManager> It(GetWorld()); It; ++It)
+	{
+		const float DistanceSq = FVector::DistSquared2D(GetActorLocation(), It->GetActorLocation());
+		if (DistanceSq < NearestDistanceSq)
+		{
+			NearestDistanceSq = DistanceSq;
+			OceanManager = *It;
+		}
+	}
 }
 
 FString AGCSurfboardPawn::GetModeText() const
@@ -145,9 +161,11 @@ void AGCSurfboardPawn::Tick(float DeltaSeconds)
 	else if (GetWorld())
 	{
 		// Idle bob so beached boards still look alive at the shoreline.
-		const float Time = GetWorld()->GetTimeSeconds();
-		const float Surface = WaterBaseLevelZ + AGCOceanManager::GetWaveHeightAt(
-			FVector2D(GetActorLocation().X, GetActorLocation().Y), Time, 1.0f);
+		const FGCOceanSample Sample = OceanManager
+			? OceanManager->SampleOcean(GetActorLocation())
+			: AGCOceanManager::SampleOceanStatic(FVector2D(GetActorLocation().X, GetActorLocation().Y),
+				GetWorld()->GetTimeSeconds(), 1.0f);
+		const float Surface = OceanManager ? Sample.Height : WaterBaseLevelZ + Sample.Height;
 		FVector Loc = GetActorLocation();
 		if (Loc.Z < Surface + 30.0f)
 		{
@@ -165,8 +183,10 @@ void AGCSurfboardPawn::UpdateRide(float DeltaSeconds)
 	}
 	const float Time = GetWorld()->GetTimeSeconds();
 	const FVector Loc = GetActorLocation();
-	const FGCOceanSample Sample = AGCOceanManager::SampleOceanStatic(FVector2D(Loc.X, Loc.Y), Time, 1.0f);
-	const float SurfaceZ = WaterBaseLevelZ + Sample.Height;
+	const FGCOceanSample Sample = OceanManager
+		? OceanManager->SampleOcean(Loc)
+		: AGCOceanManager::SampleOceanStatic(FVector2D(Loc.X, Loc.Y), Time, 1.0f);
+	const float SurfaceZ = OceanManager ? Sample.Height : WaterBaseLevelZ + Sample.Height;
 	FoamFactor = Sample.FoamFactor;
 
 	float ModeMaxSpeed = MaxSpeed;
@@ -195,10 +215,10 @@ void AGCSurfboardPawn::UpdateRide(float DeltaSeconds)
 	const FVector SlopeAccel(-Sample.Normal.X, -Sample.Normal.Y, 0.0f);
 	Accel += SlopeAccel * WaveSlopeAccel * (Mode == EGCSurfMode::Surfboard ? 1.25f : 0.75f);
 	Accel += Forward * (InputThrottle * ModePaddle);
-	Accel += Sample.Current * (Mode == EGCSurfMode::WhitewaterRaft ? 1.7f : 0.45f);
+	Accel += Sample.SurfaceVelocity * (Mode == EGCSurfMode::WhitewaterRaft ? 1.7f : 0.45f);
 	if (Mode == EGCSurfMode::WhitewaterRaft && FoamFactor > 0.45f)
 	{
-		Accel += Sample.Current * 2.2f; // whitewater push on foamy crests
+		Accel += Sample.SurfaceVelocity * 2.2f; // whitewater push on foamy crests
 	}
 	Accel += -PlanarVelocity * Drag;
 
@@ -210,9 +230,15 @@ void AGCSurfboardPawn::UpdateRide(float DeltaSeconds)
 	SpeedKmh = PlanarVelocity.Size() * 0.036f;
 
 	FVector NewLoc = Loc + PlanarVelocity * DeltaSeconds;
-	NewLoc.Z = SurfaceZ + (Mode == EGCSurfMode::WhitewaterRaft ? 28.0f : 10.0f);
+	const FGCOceanSample DestinationSample = OceanManager
+		? OceanManager->SampleOcean(NewLoc)
+		: AGCOceanManager::SampleOceanStatic(FVector2D(NewLoc.X, NewLoc.Y), Time, 1.0f);
+	const float DestinationSurfaceZ = OceanManager
+		? DestinationSample.Height
+		: WaterBaseLevelZ + DestinationSample.Height;
+	NewLoc.Z = DestinationSurfaceZ + (Mode == EGCSurfMode::WhitewaterRaft ? 28.0f : 10.0f);
 
-	if (IsBeached(NewLoc, SurfaceZ))
+	if (IsBeached(NewLoc, DestinationSurfaceZ))
 	{
 		PlanarVelocity *= 0.25f;
 		NewLoc = Loc;

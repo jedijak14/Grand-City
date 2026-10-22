@@ -1,8 +1,14 @@
 # Water: making visuals match the physics
 
-`AGCOceanManager::GetWaveHeightAt` is the single source of truth (3 travelling sine
-waves, amplitudes 26/15/7 cm). Boats and swimming sample it. To make the visible
-surface match, either:
+`AGCOceanManager` is the single source of truth for the three travelling sine waves
+(amplitudes 26/15/7 cm): height, analytic surface normal, vertical velocity, horizontal
+wave-orbital velocity, background current, and a crest/foam estimate. Boats, swimmers,
+and surfboards cache the nearest ocean manager so its actor Z and amplitude setting are
+respected. Boat buoyancy now applies capped multi-point spring lift and damping against
+local wave/current velocity; board steering responds to combined surface flow. These
+are still approximations, not a full fluid or CFD solver.
+
+To make the visible surface match, either:
 
 **Option A (quick):** Water material with World Position Offset in the material graph —
 rebuild the same 3 sine waves with `Time`, `WorldPosition` nodes:
