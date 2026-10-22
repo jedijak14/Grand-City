@@ -33,8 +33,8 @@ def enum_value(enum_names, value_name):
     raise RuntimeError("Enum value {} not found in {}".format(value_name, enum_type))
 
 
-def cube(mesh, location, scale, label):
-    actor = spawn(unreal.StaticMeshActor, location)
+def cube(mesh, location, scale, label, rotation=None):
+    actor = spawn(unreal.StaticMeshActor, location, rotation)
     component = actor.get_component_by_class(unreal.StaticMeshComponent)
     component.set_static_mesh(mesh)
     actor.set_actor_scale3d(unreal.Vector(*scale))
@@ -97,6 +97,22 @@ def main():
         locations.append(actor)
     locations[3].set_editor_property("flight_destination", locations[4])
     locations[4].set_editor_property("flight_destination", locations[3])
+
+    # Working moving-tread escalators beside the airport test points. Rails are simple greybox dressing.
+    escalator_cls = native_class("GCEscalatorActor")
+    escalator_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube.Cube")
+    for airport_x, label in ((-8000.0, "TEST - west terminal escalator"), (8000.0, "TEST - east terminal escalator")):
+        escalator = spawn(escalator_cls, (airport_x, 5900.0, 0.0), unreal.Rotator(0.0, 90.0, 0.0))
+        escalator.set_editor_property("tread_mesh", escalator_mesh)
+        escalator.set_editor_property("ramp_run_cm", 700.0)
+        escalator.set_editor_property("ramp_rise_cm", 350.0)
+        escalator.set_editor_property("width_cm", 190.0)
+        escalator.set_editor_property("step_count", 28)
+        escalator.set_actor_label(label, mark_dirty=True)
+        rail_rotation = unreal.Rotator(26.565, 90.0, 0.0)
+        for side in (-1.0, 1.0):
+            cube(escalator_mesh, (airport_x + side * 135.0, 6250.0, 275.0),
+                 (4.0, 0.06, 0.06), label + " handrail", rail_rotation)
 
     # Add visible default vehicle test pawns. Custom Blueprint children and imported
     # models should replace these defaults when available.
