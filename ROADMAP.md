@@ -43,6 +43,9 @@
 - [ ] AnimBP graph assets per imported skeleton (editor work — variables/docs/script provided)
 - [ ] Niagara FX assets: tyre smoke, muzzle flash, blood, crash sparks, boat wake (C++ hooks exist)
 - [ ] Passenger-flight seatback as a UMG widget (currently canvas HUD); second island / OSM city pass
+- [ ] Compile and test moving escalator and elevator prototypes in UE (rider carry, doors, collisions, landings), then build production airport terminal interiors with bathrooms, check-in/boarding animations, and ambient passenger chatter
+- [ ] Replace sample/fallback vehicle and character meshes with original, licensed, high-quality production assets and rigged animations
+- [ ] Compile and run the `L_HarborVerticalSlice` builder; profile the shared-wave/wake surface, art-review the result, then replace the procedural blockout with authored, licensed assets, trim sheets, decals, and production water (UE Editor work remains unverified)
 
 ## Phase 3 — Life-sim & shipping (deprioritized by owner, still planned)
 - Job loops: cop (arrest missions), hitman (targets), taxi, medic, shop owner, border patrol,

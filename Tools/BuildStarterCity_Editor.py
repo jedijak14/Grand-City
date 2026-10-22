@@ -33,8 +33,8 @@ def enum_value(enum_names, value_name):
     raise RuntimeError("Enum value {} not found in {}".format(value_name, enum_type))
 
 
-def cube(mesh, location, scale, label):
-    actor = spawn(unreal.StaticMeshActor, location)
+def cube(mesh, location, scale, label, rotation=None):
+    actor = spawn(unreal.StaticMeshActor, location, rotation)
     component = actor.get_component_by_class(unreal.StaticMeshComponent)
     component.set_static_mesh(mesh)
     actor.set_actor_scale3d(unreal.Vector(*scale))
@@ -92,11 +92,54 @@ def main():
         actor.set_actor_label(label, mark_dirty=True)
         mesh_component = actor.get_editor_property("building_mesh")
         if mesh_component:
-            mesh_component.set_static_mesh(cube_mesh)
-            mesh_component.set_relative_scale3d(unreal.Vector(8.0, 8.0, 7.0))
+            if enum_name == "SkyscraperElevator":
+                mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+                mesh_component.set_visibility(False, True)
+            else:
+                mesh_component.set_static_mesh(cube_mesh)
+                mesh_component.set_relative_scale3d(unreal.Vector(8.0, 8.0, 7.0))
+                mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         locations.append(actor)
     locations[3].set_editor_property("flight_destination", locations[4])
     locations[4].set_editor_property("flight_destination", locations[3])
+
+    # A real moving car between the lobby and roof stations, with an open, visible guide shaft.
+    elevator_cls = native_class("GCElevatorActor")
+    elevator = spawn(elevator_cls, (6500.0, 2500.0, 0.0))
+    elevator.set_actor_label("TEST - moving tower elevator car", mark_dirty=True)
+    base_landing = locations[6]
+    roof_landing = spawn(location_cls, (6500.0, 2500.0, 3000.0))
+    roof_landing.set_editor_property("location_type", enum_value(("EGCLocationType", "GCLocationType"), "SkyscraperElevator"))
+    roof_landing.set_actor_label("TEST - tower roof elevator landing", mark_dirty=True)
+    roof_mesh = roof_landing.get_editor_property("building_mesh")
+    if roof_mesh:
+        roof_mesh.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        roof_mesh.set_visibility(False, True)
+    for landing, destination in ((base_landing, roof_landing), (roof_landing, base_landing)):
+        landing.set_editor_property("teleport_destination", destination)
+        landing.set_editor_property("elevator_actor", elevator)
+
+    # Tall guide posts make the motion readable while leaving the cabin visible for testing.
+    for side_x in (-165.0, 165.0):
+        for side_y in (-165.0, 165.0):
+            cube(cube_mesh, (6500.0 + side_x, 2500.0 + side_y, 1500.0),
+                 (0.12, 0.12, 30.0), "TEST - elevator guide post")
+
+    # Working moving-tread escalators beside the airport test points. Rails are simple greybox dressing.
+    escalator_cls = native_class("GCEscalatorActor")
+    escalator_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube.Cube")
+    for airport_x, label in ((-8000.0, "TEST - west terminal escalator"), (8000.0, "TEST - east terminal escalator")):
+        escalator = spawn(escalator_cls, (airport_x, 5900.0, 0.0), unreal.Rotator(0.0, 90.0, 0.0))
+        escalator.set_editor_property("tread_mesh", escalator_mesh)
+        escalator.set_editor_property("ramp_run_cm", 700.0)
+        escalator.set_editor_property("ramp_rise_cm", 350.0)
+        escalator.set_editor_property("width_cm", 190.0)
+        escalator.set_editor_property("step_count", 28)
+        escalator.set_actor_label(label, mark_dirty=True)
+        rail_rotation = unreal.Rotator(26.565, 90.0, 0.0)
+        for side in (-1.0, 1.0):
+            cube(escalator_mesh, (airport_x + side * 135.0, 6250.0, 275.0),
+                 (4.0, 0.06, 0.06), label + " handrail", rail_rotation)
 
     # Add visible default vehicle test pawns. Custom Blueprint children and imported
     # models should replace these defaults when available.

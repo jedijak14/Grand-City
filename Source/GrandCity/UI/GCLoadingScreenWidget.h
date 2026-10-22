@@ -14,9 +14,11 @@ class GRANDCITY_API UGCLoadingScreenWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	/** Optional imported loading-key-art texture. If unset, the native skyline fallback is drawn. */
+	UGCLoadingScreenWidget(const FObjectInitializer& ObjectInitializer);
+
+	/** Soft reference so the imported backdrop can be gathered by the cooker; Blueprint may override it. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loading|Art")
-	TObjectPtr<UTexture2D> BackgroundTexture = nullptr;
+	TSoftObjectPtr<UTexture2D> BackgroundTexture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loading")
 	bool bSimulateProgress = true;

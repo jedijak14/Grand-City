@@ -154,6 +154,16 @@ void AGCBoatPawn::ApplyBuoyancyAndPropulsion(float DeltaSeconds)
 		if (WakeTimer <= 0.0f && FMath::Abs(FwdMps) > 2.5f)
 		{
 			WakeTimer = 0.12f;
+			if (OceanManager)
+			{
+				const FVector TravelDirection = Forward * (FwdMps >= 0.0f ? 1.0f : -1.0f);
+				const float WakeStrengthCm = FMath::Clamp((FMath::Abs(FwdMps) - 2.5f) * 1.25f
+					+ (bPlaning ? 4.0f : 0.0f), 1.0f, 22.0f);
+				OceanManager->EmitWake(TM.TransformPosition(FVector(-320.0f, 0.0f, 0.0f)),
+					TravelDirection, WakeStrengthCm, 4.5f,
+					900.0f + FMath::Abs(FwdMps) * 55.0f,
+					1600.0f + FMath::Abs(FwdMps) * 55.0f);
+			}
 			if (WakeFX)
 			{
 				UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), WakeFX,

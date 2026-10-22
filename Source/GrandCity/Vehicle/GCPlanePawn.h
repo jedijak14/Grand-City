@@ -12,6 +12,7 @@ class UCameraComponent;
 class UAudioComponent;
 class UGCHealthComponent;
 class AGCCharacter;
+class AGCOceanManager;
 
 /**
  * Flyable fixed-wing plane: thrust, lift from angle of attack + airspeed,
@@ -121,6 +122,10 @@ private:
 	UPROPERTY()
 	AGCCharacter* PilotCharacter = nullptr;
 
+	UPROPERTY(Transient)
+	TObjectPtr<AGCOceanManager> OceanManager = nullptr;
+
+	float WaterWakeTimer = 0.0f;
 	float ThrottleDeltaInput = 0.0f;
 	float PitchInput = 0.0f;
 	float RollInput = 0.0f;

@@ -1,47 +1,48 @@
 # Grand City — project status / handoff
 
-## Verified in this workspace
+## Current implementation
 
-- The current project tree is being normalized to an Unreal Engine C++ layout: module code in
-  `Source/GrandCity/`, targets in `Source/`, engine INI files in `Config/`, and external starter
-  assets in `ModelLibrary/`, `AudioVoice/`, and `AudioSFX/`.
-- Native UI source files now exist for the HUD, main menu, settings, and loading screen. The
-  loading overlay now includes a self-contained skyline, branded streaming card, tip, and
-  progress percentage. `Docs/LoadingScreenConcept.png` is a visual concept, not an Unreal capture.
-- Ocean queries now provide analytic wave normals, vertical and horizontal orbital velocities,
-  and boats, swimmers, and boards use the nearest ocean manager's world height/amplitude.
-- The `.uproject` parses as valid JSON and targets Unreal Engine 5.4. ProceduralMeshComponent
-  and Water remain enabled; ChaosVehicles remains deliberately disabled.
-- The current code inventory is 32 `.cpp` files and 34 headers after adding the missing UI
-  module files. The uploaded tree has 15 public GLBs, 20 voice WAVs, and 17 SFX WAVs. A new
-  176k-triangle original vehicle prototype GLB is generated locally by `Tools/CreateGrandCityArdenGT.py`; it is not yet committed through Git LFS.
-- `.gitignore` excludes Unreal-generated/build output. `.gitattributes` marks model and Unreal
-  binary assets for Git LFS.
+- Unreal Engine 5.4 C++ project source lives under `Source/GrandCity/`; generated maps and imported
+  content are editor outputs and are not checked in.
+- Native loading UI draws the streaming card/progress display and can resolve the original sunset
+  harbor backdrop from `/Game/GrandCity/UI/LoadingScreenBackdrop` after the model importer runs.
+  The concept images remain mockups, not Unreal screenshots.
+- `AGCOceanManager` provides analytic wave height/normal/velocity queries and an optional
+  CPU-deformed procedural surface. Boat wake packets and fast, low plane passes contribute a
+  bounded stylized wake height, slope, and velocity to physics samples and the harbor mesh.
+- `AGCEscalatorActor` circulates instanced treads and gives grounded characters upward movement in
+  its ride zone. The starter-map script places two blockout escalators beside airport test markers.
+- `AGCElevatorActor` now runs a one-car lobby-to-roof cycle with caller-floor pickup, a boarding dwell,
+  animated split doors, a doorway obstruction sensor, collision walls, a moving floor, and two linked
+  interaction landings in the starter map.
+- The harbor look-development builder adds a coastal boulevard and procedural facades/props,
+  player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile.
+- `Tools/CreateGrandCityArdenGT.py` generates a 176k-triangle original static vehicle prototype.
+  The available GLB character/vehicle models are samples; production-quality custom, rigged car
+  and character assets are still outstanding.
 
-## Not yet verified / blockers
+## Verification status and blockers
 
-- **No Unreal Engine 5.4 or Visual Studio 2022 compiler is available in this workspace.** C++
-  still needs an actual Development Editor | Win64 build on the owner's Windows PC. No compile,
-  cook, editor launch, or gameplay test is claimed.
-- Git LFS is not installed in this workspace. The new attributes are present, but the existing
-  model blobs have not yet been migrated into LFS storage. Install Git LFS before the next
-  push/clone that relies on those assets, then migrate/re-upload if required.
-- Editor helpers for model/audio import, greybox map creation, and AnimBlueprint shells have been
-  added under `Tools/`; they pass Python syntax checks but have not been run inside Unreal Editor.
-  The NSIS installer source, SFX generator, and offline preview renderer referenced in older
-  notes are still absent from the uploaded source tree.
-- Unreal editor-only assets (maps, Blueprints, AnimBP graphs, Niagara systems) are not included.
+- Python syntax/AST checks and `git diff --check` have passed for the editor scripts and latest
+  source changes. These do not validate Unreal APIs or runtime behavior.
+- **No Unreal Engine 5.4 or Visual Studio 2022 compiler is available in this workspace.** The new
+  C++ additions (water wake response, escalator, and elevator actors), editor material creation, map
+  appearance, moving-platform carry, landing overlap, collision, animation, cooking, and performance
+  have not been built or run in Unreal.
+- Water/wake behavior is a stylized empirical model, not a full fluid solver. The CPU surface and
+  wake packet count require profiling at the actual target resolution and actor density.
+- The starter map remains greybox. Bathrooms, authored terminal interiors, production escalator
+  rails/treads, original high-quality vehicle/character models, rigged animation sets, and final
+  lighting/material review are incomplete.
+- Git LFS is not installed in this workspace. Do not add large model binaries as ordinary Git blobs;
+  install and use LFS before publishing generated/imported model assets.
+- The loading image import is automated, but a packaged build still needs an Unreal cook/runtime
+  check. Niagara and Animation Blueprint graphs still require editor setup and verification.
 
 ## Next verification gate
 
-On Windows with UE 5.4 + VS2022: install Git LFS, pull the project, right-click
-`GrandCity.uproject` → Generate Visual Studio project files, build **Development Editor | Win64**,
-then send the first compiler errors verbatim. After a successful build, open the editor and
-verify the starter-map workflow before claiming playability.
-
-## Honest limits
-
-This is a C++ prototype, not a standalone packaged game. The project installer (if restored and
-verified) installs the UE project and still requires UE5 + VS2022. Crash deformation is mesh
-denting rather than true soft-body physics. Art-target images are labeled `TARGET_*`; they are
-not gameplay screenshots.
+On Windows with UE 5.4 + Visual Studio 2022: install Git LFS, build **Development Editor | Win64**,
+run `Tools/ImportModels_Editor.py`, then build and Play the starter map. Check escalator collisions
+and rider motion, verify the loaded backdrop, test boat/low-plane wakes and buoyancy, and profile
+the harbor surface with multiple wake sources. Fix compiler/runtime errors before presenting this
+as a playable or AA-quality result.

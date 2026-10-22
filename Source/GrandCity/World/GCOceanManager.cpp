@@ -2,14 +2,181 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCGameUserSettings.h"
 
+namespace
+{
+	float EvaluateBaseWaveHeight(const FVector2D& XY, float TimeSeconds, float Amplitude)
+	{
+		const float P0 = 0.0016f * XY.X + 0.0011f * XY.Y + TimeSeconds * 0.9f;
+		const float P1 = -0.0023f * XY.X + 0.0028f * XY.Y + TimeSeconds * 1.35f;
+		const float P2 = 0.0061f * XY.X - 0.0052f * XY.Y + TimeSeconds * 2.2f;
+		return Amplitude * (26.0f * FMath::Sin(P0) + 15.0f * FMath::Sin(P1) + 7.0f * FMath::Sin(P2));
+	}
+}
+
 AGCOceanManager::AGCOceanManager()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	Tags.Add(TEXT("Water"));
 
 	WaterMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WaterMesh"));
 	RootComponent = WaterMesh;
 	WaterMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	WaveSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("WaveSurface"));
+	WaveSurface->SetupAttachment(RootComponent);
+	WaveSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AGCOceanManager::BeginPlay()
+{
+	Super::BeginPlay();
+	if (!bGenerateVisualSurface || !WaveSurface)
+	{
+		return;
+	}
+
+	// Keep compatibility with maps that assign the material to the legacy root component.
+	if (!WaveSurface->GetMaterial(0) && WaterMesh->GetMaterial(0))
+	{
+		WaveSurface->SetMaterial(0, WaterMesh->GetMaterial(0));
+	}
+	BuildVisualSurface();
+	UpdateVisualSurface();
+	SetActorTickEnabled(true);
+}
+
+void AGCOceanManager::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	ActiveWakeImpulses.RemoveAll([Now](const FGCWaterWakeImpulse& Wake)
+	{
+		return Now - Wake.StartTime > Wake.LifetimeSeconds;
+	});
+
+	if (!bGenerateVisualSurface || !WaveSurface)
+	{
+		if (ActiveWakeImpulses.IsEmpty())
+		{
+			SetActorTickEnabled(false);
+		}
+		return;
+	}
+
+	VisualSurfaceUpdateAccumulator += DeltaSeconds;
+	const float UpdateInterval = FMath::Clamp(VisualSurfaceUpdateInterval, 0.016f, 0.25f);
+	if (VisualSurfaceUpdateAccumulator >= UpdateInterval)
+	{
+		VisualSurfaceUpdateAccumulator = FMath::Fmod(VisualSurfaceUpdateAccumulator, UpdateInterval);
+		UpdateVisualSurface();
+	}
+}
+
+void AGCOceanManager::BuildVisualSurface()
+{
+	if (!WaveSurface)
+	{
+		return;
+	}
+
+	const int32 Resolution = FMath::Clamp(VisualSurfaceGridResolution, 8, 256);
+	const int32 Side = Resolution + 1;
+	const int32 VertexCount = Side * Side;
+	const FVector2D Extent(FMath::Max(1000.0f, VisualSurfaceHalfExtent.X), FMath::Max(1000.0f, VisualSurfaceHalfExtent.Y));
+	VisualSurfaceVertices.SetNumUninitialized(VertexCount);
+	VisualSurfaceNormals.Init(FVector::UpVector, VertexCount);
+	VisualSurfaceUVs.SetNumUninitialized(VertexCount);
+	VisualSurfaceColors.Init(FLinearColor::White, VertexCount);
+	VisualSurfaceTangents.Init(FProcMeshTangent(FVector::ForwardVector, false), VertexCount);
+	VisualSurfaceTriangles.Reset(Resolution * Resolution * 6);
+
+	for (int32 Y = 0; Y < Side; ++Y)
+	{
+		for (int32 X = 0; X < Side; ++X)
+		{
+			const int32 Index = Y * Side + X;
+			VisualSurfaceVertices[Index] = FVector(-Extent.X + (2.0f * Extent.X * X / Resolution),
+				-Extent.Y + (2.0f * Extent.Y * Y / Resolution), 0.0f);
+			VisualSurfaceUVs[Index] = FVector2D(static_cast<float>(X) / Resolution, static_cast<float>(Y) / Resolution);
+		}
+	}
+
+	for (int32 Y = 0; Y < Resolution; ++Y)
+	{
+		for (int32 X = 0; X < Resolution; ++X)
+		{
+			const int32 I = Y * Side + X;
+			VisualSurfaceTriangles.Add(I);
+			VisualSurfaceTriangles.Add(I + 1);
+			VisualSurfaceTriangles.Add(I + Side);
+			VisualSurfaceTriangles.Add(I + 1);
+			VisualSurfaceTriangles.Add(I + Side + 1);
+			VisualSurfaceTriangles.Add(I + Side);
+		}
+	}
+
+	WaveSurface->CreateMeshSection_LinearColor(0, VisualSurfaceVertices, VisualSurfaceTriangles,
+		VisualSurfaceNormals, VisualSurfaceUVs, VisualSurfaceColors, VisualSurfaceTangents, false);
+}
+
+void AGCOceanManager::UpdateVisualSurface()
+{
+	if (!WaveSurface || VisualSurfaceVertices.IsEmpty())
+	{
+		return;
+	}
+
+	const int32 Resolution = FMath::Clamp(VisualSurfaceGridResolution, 8, 256);
+	const int32 Side = Resolution + 1;
+	const FVector2D Extent(FMath::Max(1000.0f, VisualSurfaceHalfExtent.X), FMath::Max(1000.0f, VisualSurfaceHalfExtent.Y));
+	const FVector ActorLocation = GetActorLocation();
+	const float TimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
+	const bool bWavesEnabled = !Settings || Settings->bWavesEnabled;
+	const float VisualAmplitude = bWavesEnabled
+		? FMath::Clamp(FMath::IsFinite(AmplitudeScale) ? AmplitudeScale : 0.0f, 0.0f, 4.0f) : 0.0f;
+
+	for (int32 Y = 0; Y < Side; ++Y)
+	{
+		for (int32 X = 0; X < Side; ++X)
+		{
+			const int32 Index = Y * Side + X;
+			const float LocalX = -Extent.X + (2.0f * Extent.X * X / Resolution);
+			const float LocalY = -Extent.Y + (2.0f * Extent.Y * Y / Resolution);
+			const FVector2D WorldXY(ActorLocation.X + LocalX, ActorLocation.Y + LocalY);
+			const float Height = EvaluateBaseWaveHeight(WorldXY, TimeSeconds, VisualAmplitude)
+				+ GetWakeHeightAt(WorldXY, TimeSeconds, bWavesEnabled);
+			VisualSurfaceVertices[Index] = FVector(LocalX, LocalY, Height);
+		}
+	}
+
+	const float StepX = (2.0f * Extent.X) / Resolution;
+	const float StepY = (2.0f * Extent.Y) / Resolution;
+	const float SafeAmplitude = FMath::Max(0.01f, FMath::Abs(VisualAmplitude));
+	for (int32 Y = 0; Y < Side; ++Y)
+	{
+		for (int32 X = 0; X < Side; ++X)
+		{
+			const int32 Left = Y * Side + FMath::Max(0, X - 1);
+			const int32 Right = Y * Side + FMath::Min(Resolution, X + 1);
+			const int32 Down = FMath::Max(0, Y - 1) * Side + X;
+			const int32 Up = FMath::Min(Resolution, Y + 1) * Side + X;
+			const float Ddx = StepX * (X == 0 || X == Resolution ? 1.0f : 2.0f);
+			const float Ddy = StepY * (Y == 0 || Y == Resolution ? 1.0f : 2.0f);
+			const float SlopeX = (VisualSurfaceVertices[Right].Z - VisualSurfaceVertices[Left].Z) / Ddx;
+			const float SlopeY = (VisualSurfaceVertices[Up].Z - VisualSurfaceVertices[Down].Z) / Ddy;
+			const FVector Normal = FVector(-SlopeX, -SlopeY, 1.0f).GetSafeNormal();
+			VisualSurfaceNormals[Y * Side + X] = Normal;
+			const float Crest = VisualSurfaceVertices[Y * Side + X].Z / (48.0f * SafeAmplitude) * 0.75f
+				+ (1.0f - Normal.Z) * 2.2f;
+			const float Foam = FMath::SmoothStep(0.55f, 1.0f, Crest);
+			VisualSurfaceColors[Y * Side + X] = FLinearColor(Foam, 1.0f, 1.0f, 1.0f);
+		}
+	}
+
+	WaveSurface->UpdateMeshSection_LinearColor(0, VisualSurfaceVertices, VisualSurfaceNormals,
+		VisualSurfaceUVs, VisualSurfaceColors, VisualSurfaceTangents);
 }
 
 float AGCOceanManager::GetWaveHeightAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale)
@@ -22,11 +189,8 @@ float AGCOceanManager::GetWaveHeightAt(const FVector2D& XY, float TimeSeconds, f
 		}
 	}
 	const float A = FMath::Clamp(FMath::IsFinite(InAmplitudeScale) ? InAmplitudeScale : 0.0f, 0.0f, 4.0f);
-	// Three travelling waves (amplitudes in cm). Keep the same coefficients in the water material.
-	const float P0 = 0.0016f * XY.X + 0.0011f * XY.Y + TimeSeconds * 0.9f;
-	const float P1 = -0.0023f * XY.X + 0.0028f * XY.Y + TimeSeconds * 1.35f;
-	const float P2 = 0.0061f * XY.X - 0.0052f * XY.Y + TimeSeconds * 2.2f;
-	return A * (26.0f * FMath::Sin(P0) + 15.0f * FMath::Sin(P1) + 7.0f * FMath::Sin(P2));
+	// Three travelling waves (amplitudes in cm); the visual grid samples this exact function.
+	return EvaluateBaseWaveHeight(XY, TimeSeconds, A);
 }
 
 FVector AGCOceanManager::GetWaveNormalAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale)
@@ -112,6 +276,107 @@ float AGCOceanManager::GetFoamFactorAt(const FVector2D& XY, float TimeSeconds, f
 	return FMath::SmoothStep(0.55f, 1.0f, Crest);
 }
 
+float AGCOceanManager::GetWakeHeightAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const
+{
+	if (!bWavesEnabled)
+	{
+		return 0.0f;
+	}
+
+	float Height = 0.0f;
+	for (const FGCWaterWakeImpulse& Wake : ActiveWakeImpulses)
+	{
+		const float Age = TimeSeconds - Wake.StartTime;
+		if (Age < 0.0f || Age > Wake.LifetimeSeconds)
+		{
+			continue;
+		}
+
+		const FVector2D Offset = XY - Wake.Center;
+		const float Back = -FVector2D::DotProduct(Offset, Wake.TravelDirection);
+		const float MaxLength = FMath::Min(Age * Wake.GrowthSpeedCmPerSecond, 50000.0f);
+		if (Back <= 0.0f || Back >= MaxLength)
+		{
+			continue;
+		}
+
+		const FVector2D Right(-Wake.TravelDirection.Y, Wake.TravelDirection.X);
+		const float Side = FMath::Abs(FVector2D::DotProduct(Offset, Right));
+		const float ArmDistance = Side - Back * 0.58f;
+		const float ArmWidth = 90.0f + Back * 0.025f;
+		const float Envelope = FMath::Exp(-FMath::Abs(ArmDistance) / ArmWidth)
+			* FMath::Exp(-Back / 22000.0f) * FMath::Exp(-Age * 0.42f);
+		const float Growth = 1.0f - FMath::Exp(-Age * 5.0f);
+		const float Phase = Back * (2.0f * PI / Wake.WavelengthCm) - Age * 4.4f;
+		Height += Wake.StrengthCm * Envelope * Growth * FMath::Sin(Phase);
+	}
+	return Height;
+}
+
+FVector AGCOceanManager::GetWakeSurfaceVelocityAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const
+{
+	if (!bWavesEnabled)
+	{
+		return FVector::ZeroVector;
+	}
+
+	FVector Velocity = FVector::ZeroVector;
+	for (const FGCWaterWakeImpulse& Wake : ActiveWakeImpulses)
+	{
+		const float Age = TimeSeconds - Wake.StartTime;
+		if (Age < 0.0f || Age > Wake.LifetimeSeconds)
+		{
+			continue;
+		}
+		const FVector2D Offset = XY - Wake.Center;
+		const float Back = -FVector2D::DotProduct(Offset, Wake.TravelDirection);
+		if (Back <= 0.0f || Back >= FMath::Min(Age * Wake.GrowthSpeedCmPerSecond, 50000.0f))
+		{
+			continue;
+		}
+		const FVector2D Right(-Wake.TravelDirection.Y, Wake.TravelDirection.X);
+		const float Side = FMath::Abs(FVector2D::DotProduct(Offset, Right));
+		const float ArmDistance = Side - Back * 0.58f;
+		const float ArmWidth = 90.0f + Back * 0.025f;
+		const float Envelope = FMath::Exp(-FMath::Abs(ArmDistance) / ArmWidth)
+			* FMath::Exp(-Back / 22000.0f) * FMath::Exp(-Age * 0.42f);
+		const float Growth = 1.0f - FMath::Exp(-Age * 5.0f);
+		const float Phase = Back * (2.0f * PI / Wake.WavelengthCm) - Age * 4.4f;
+		const float OrbitalSpeed = Wake.StrengthCm * Envelope * Growth * 4.4f * FMath::Cos(Phase);
+		Velocity.X -= Wake.TravelDirection.X * OrbitalSpeed;
+		Velocity.Y -= Wake.TravelDirection.Y * OrbitalSpeed;
+	}
+	return Velocity.GetClampedToMaxSize(400.0f);
+}
+
+void AGCOceanManager::EmitWake(const FVector& WorldLocation, const FVector& TravelDirection, float StrengthCm,
+	float LifetimeSeconds, float GrowthSpeedCmPerSecond, float WavelengthCm)
+{
+	if (!GetWorld() || !FMath::IsFinite(StrengthCm) || StrengthCm <= 0.05f)
+	{
+		return;
+	}
+	const FVector2D Direction(TravelDirection.X, TravelDirection.Y);
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	if (ActiveWakeImpulses.Num() >= 64)
+	{
+		ActiveWakeImpulses.RemoveAt(0);
+	}
+	FGCWaterWakeImpulse& Wake = ActiveWakeImpulses.AddDefaulted_GetRef();
+	Wake.Center = FVector2D(WorldLocation.X, WorldLocation.Y);
+	Wake.TravelDirection = Direction.GetSafeNormal();
+	Wake.StartTime = GetWorld()->GetTimeSeconds();
+	Wake.StrengthCm = FMath::Clamp(StrengthCm, 0.0f, 40.0f);
+	Wake.LifetimeSeconds = FMath::Clamp(LifetimeSeconds, 0.25f, 8.0f);
+	Wake.GrowthSpeedCmPerSecond = FMath::Clamp(GrowthSpeedCmPerSecond, 100.0f, 4000.0f);
+	Wake.WavelengthCm = FMath::Clamp(WavelengthCm, 250.0f, 5000.0f);
+	SetActorTickEnabled(true);
+}
+
 FGCOceanSample AGCOceanManager::SampleOceanStatic(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale)
 {
 	FGCOceanSample Sample;
@@ -127,7 +392,29 @@ FGCOceanSample AGCOceanManager::SampleOceanStatic(const FVector2D& XY, float Tim
 FGCOceanSample AGCOceanManager::SampleOcean(const FVector& WorldLocation) const
 {
 	const float Time = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	FGCOceanSample Sample = SampleOceanStatic(FVector2D(WorldLocation.X, WorldLocation.Y), Time, AmplitudeScale);
-	Sample.Height += GetActorLocation().Z;
+	const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
+	const bool bWavesEnabled = !Settings || Settings->bWavesEnabled;
+	const FVector2D XY(WorldLocation.X, WorldLocation.Y);
+	FGCOceanSample Sample = SampleOceanStatic(XY, Time, AmplitudeScale);
+	const float WakeHeight = GetWakeHeightAt(XY, Time, bWavesEnabled);
+	Sample.Height += GetActorLocation().Z + WakeHeight;
+
+	// Add the wake's finite-difference slope and vertical motion to the same sample used by buoyancy.
+	constexpr float SpatialStepCm = 50.0f;
+	constexpr float TimeStepSeconds = 0.02f;
+	const float WakeSlopeX = (GetWakeHeightAt(XY + FVector2D(SpatialStepCm, 0.0f), Time, bWavesEnabled)
+		- GetWakeHeightAt(XY - FVector2D(SpatialStepCm, 0.0f), Time, bWavesEnabled)) / (2.0f * SpatialStepCm);
+	const float WakeSlopeY = (GetWakeHeightAt(XY + FVector2D(0.0f, SpatialStepCm), Time, bWavesEnabled)
+		- GetWakeHeightAt(XY - FVector2D(0.0f, SpatialStepCm), Time, bWavesEnabled)) / (2.0f * SpatialStepCm);
+	const float WakeVerticalVelocity = (GetWakeHeightAt(XY, Time + TimeStepSeconds, bWavesEnabled)
+		- GetWakeHeightAt(XY, Time - TimeStepSeconds, bWavesEnabled)) / (2.0f * TimeStepSeconds);
+	const float BaseSlopeX = -Sample.Normal.X / FMath::Max(0.001f, Sample.Normal.Z);
+	const float BaseSlopeY = -Sample.Normal.Y / FMath::Max(0.001f, Sample.Normal.Z);
+	Sample.Normal = FVector(-(BaseSlopeX + WakeSlopeX), -(BaseSlopeY + WakeSlopeY), 1.0f).GetSafeNormal();
+	Sample.VerticalVelocity += WakeVerticalVelocity;
+	Sample.SurfaceVelocity += GetWakeSurfaceVelocityAt(XY, Time, bWavesEnabled);
+	const float WakeFoam = FMath::Clamp(FMath::Abs(WakeHeight) / 16.0f
+		+ (FMath::Abs(WakeSlopeX) + FMath::Abs(WakeSlopeY)) * 0.3f, 0.0f, 1.0f);
+	Sample.FoamFactor = FMath::Max(Sample.FoamFactor, WakeFoam);
 	return Sample;
 }
