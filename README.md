@@ -42,7 +42,7 @@ For a denser coastal look-development scene, run `Tools/BuildHarborVerticalSlice
 It creates `/Game/Maps/L_HarborVerticalSlice` with modular storefront facades, glazing, palms,
 street furniture, crosswalks, warm lighting, and a player-car spawn. Run the model importer first
 for the best available vehicle mesh. Details and the unverified editor workflow are in
-`Docs/HARBOR_VERTICAL_SLICE.md`; its procedural architecture remains a placeholder kit, while the harbor surface now uses a configurable CPU-deformed wave grid shared with water gameplay queries. This is an uncompiled, unprofiled development feature—not final AA art.
+`Docs/HARBOR_VERTICAL_SLICE.md`; its procedural architecture remains a placeholder kit, while the harbor surface now uses a configurable CPU-deformed wave grid shared with gameplay queries and stylized boat/low-aircraft wake disturbances. This is an uncompiled, unprofiled development feature—not final AA art. Run the model importer to make the original sunset harbor loading backdrop available to the native loading widget; see `Docs/LOADING_SCREEN_ART.md`.
 `Config/DefaultScalability.ini` also provides a UE High preset for testing on capable PCs.
 
 ## 3. Put real (high-poly) models in

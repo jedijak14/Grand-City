@@ -6,8 +6,10 @@ AA art and not evidence of an Unreal render. The editor script assembles reusabl
 materials, a waterfront boulevard, scored sidewalks, crosswalks, custom mixed-use facades with
 recessed glazing, palms, street lights, signals, a boardwalk, an ocean query surface, a player
 start, and the native gameplay systems. Its harbor water is a CPU-deformed procedural grid driven
-by the same analytic wave queries used by buoyancy, updating at a configurable capped rate. It also
-creates a high-preset scalability profile for high-end PC presentation.
+by the same analytic wave queries used by buoyancy, updating at a configurable capped rate. Boat
+wakes and low aircraft passes add bounded disturbances to the same rendered and sampled surface;
+the material uses vertex color to accent steep crests. It also creates a high-preset scalability
+profile for high-end PC presentation.
 
 ## Run it in Unreal Editor
 

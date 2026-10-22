@@ -7,7 +7,9 @@
 #include "Components/GCHealthComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "World/GCOceanManager.h"
 
 AGCPlanePawn::AGCPlanePawn()
 {
@@ -67,6 +69,17 @@ void AGCPlanePawn::BeginPlay()
 	Super::BeginPlay();
 	Body->SetMassOverrideInKg(NAME_None, MassKg, true);
 	Body->RecreatePhysicsState();
+
+	float NearestDistanceSq = TNumericLimits<float>::Max();
+	for (TActorIterator<AGCOceanManager> It(GetWorld()); It; ++It)
+	{
+		const float DistanceSq = FVector::DistSquared2D(GetActorLocation(), It->GetActorLocation());
+		if (DistanceSq < NearestDistanceSq)
+		{
+			NearestDistanceSq = DistanceSq;
+			OceanManager = *It;
+		}
+	}
 }
 
 void AGCPlanePawn::Tick(float DeltaSeconds)
@@ -82,6 +95,33 @@ void AGCPlanePawn::Tick(float DeltaSeconds)
 		FuelPercent = FMath::Max(0.0f, FuelPercent - Throttle * FuelBurnPercentPerSecond * DeltaSeconds);
 	}
 	ApplyFlightPhysics(DeltaSeconds);
+
+	// A fast aircraft only disturbs the ocean during a genuinely low pass over the water surface.
+	WaterWakeTimer -= DeltaSeconds;
+	if (OceanManager && WaterWakeTimer <= 0.0f)
+	{
+		const FVector Location = GetActorLocation();
+		const FVector Velocity = Body->GetPhysicsLinearVelocity();
+		const float SpeedMps = Velocity.Size() / 100.0f;
+		const FVector2D HalfExtent = OceanManager->VisualSurfaceHalfExtent;
+		const FVector OceanLocation = OceanManager->GetActorLocation();
+		const bool bOverOcean = !OceanManager->bGenerateVisualSurface
+			|| (FMath::Abs(Location.X - OceanLocation.X) <= HalfExtent.X
+				&& FMath::Abs(Location.Y - OceanLocation.Y) <= HalfExtent.Y);
+		const float HeightAboveWater = Location.Z - OceanManager->SampleOcean(Location).Height;
+		if (bOverOcean && HeightAboveWater >= -100.0f && HeightAboveWater <= 2500.0f && SpeedMps >= 40.0f)
+		{
+			const float HeightFactor = 1.0f - HeightAboveWater / 2500.0f;
+			const float WakeStrengthCm = FMath::Clamp((SpeedMps - 40.0f) * 0.14f * HeightFactor, 0.5f, 12.0f);
+			OceanManager->EmitWake(Location - GetActorForwardVector() * 450.0f,
+				GetActorForwardVector(), WakeStrengthCm, 3.0f, 2200.0f, 2800.0f);
+			WaterWakeTimer = 0.14f;
+		}
+		else
+		{
+			WaterWakeTimer = 0.35f;
+		}
+	}
 
 	if (EngineAudio && EngineAudio->GetSound())
 	{

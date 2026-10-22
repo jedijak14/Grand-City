@@ -26,6 +26,7 @@ PALETTE = {
     "leaf": ((0.08, 0.22, 0.13), 0.76, 0.0),
     "metal": ((0.12, 0.16, 0.17), 0.28, 0.55),
     "water": ((0.018, 0.105, 0.135), 0.16, 0.18),
+    "water_dynamic": ((0.018, 0.105, 0.135), 0.16, 0.18),
     "amber": ((0.98, 0.46, 0.12), 0.3, 0.0),
     "white": ((0.91, 0.88, 0.77), 0.58, 0.0),
 }
@@ -70,8 +71,36 @@ def create_material(name, color, roughness, metallic):
         material, unreal.MaterialExpressionConstant, -420, 230
     )
     metal.set_editor_property("r", metallic)
-    graph.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    graph.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    if name == "water_dynamic":
+        # Vertex red carries crest/wake foam: blend toward white and increase roughness at disturbed crests.
+        vertex_color = graph.create_material_expression(
+            material, unreal.MaterialExpressionVertexColor, -180, 360
+        )
+        foam_white = graph.create_material_expression(
+            material, unreal.MaterialExpressionConstant3Vector, -180, 20
+        )
+        foam_white.set_editor_property("constant", unreal.LinearColor(0.82, 0.93, 0.94, 1.0))
+        color_blend = graph.create_material_expression(
+            material, unreal.MaterialExpressionLinearInterpolate, 100, -60
+        )
+        graph.connect_material_expressions(base, "", color_blend, "A")
+        graph.connect_material_expressions(foam_white, "", color_blend, "B")
+        graph.connect_material_expressions(vertex_color, "R", color_blend, "Alpha")
+        rough_foam = graph.create_material_expression(
+            material, unreal.MaterialExpressionConstant, -180, 190
+        )
+        rough_foam.set_editor_property("r", 0.78)
+        rough_blend = graph.create_material_expression(
+            material, unreal.MaterialExpressionLinearInterpolate, 100, 160
+        )
+        graph.connect_material_expressions(rough, "", rough_blend, "A")
+        graph.connect_material_expressions(rough_foam, "", rough_blend, "B")
+        graph.connect_material_expressions(vertex_color, "R", rough_blend, "Alpha")
+        graph.connect_material_property(color_blend, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        graph.connect_material_property(rough_blend, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    else:
+        graph.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        graph.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     graph.connect_material_property(metal, "", unreal.MaterialProperty.MP_METALLIC)
     graph.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material)
@@ -292,12 +321,12 @@ def main():
     # used by gameplay buoyancy/query code. Tune extent and resolution after profiling in UE.
     box(cube_mesh, mats, "limestone", (9200.0, 0.0, 14.0), (30.0, 1000.0, 0.18), "HARBOR - public pier boardwalk")
     ocean = unreal.EditorLevelLibrary.spawn_actor_from_class(
-        native_class("GCOceanManager"), unreal.Vector(70000.0, 0.0, 0.0), unreal.Rotator()
+        native_class("GCOceanManager"), unreal.Vector(39000.0, 0.0, 0.0), unreal.Rotator()
     )
     ocean.set_editor_property("b_generate_visual_surface", True)
-    ocean.set_editor_property("visual_surface_half_extent", unreal.Vector2D(60000.0, 100000.0))
-    ocean.set_editor_property("visual_surface_grid_resolution", 128)
-    ocean.get_editor_property("wave_surface").set_material(0, mats["water"])
+    ocean.set_editor_property("visual_surface_half_extent", unreal.Vector2D(30000.0, 50000.0))
+    ocean.set_editor_property("visual_surface_grid_resolution", 192)
+    ocean.get_editor_property("wave_surface").set_material(0, mats["water_dynamic"])
     ocean.set_actor_label("HARBOR - animated analytic wave surface", mark_dirty=True)
 
     # Game systems and a late-afternoon third-person starting position facing down the boulevard.

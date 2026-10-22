@@ -12,7 +12,15 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 #include "Styling/CoreStyle.h"
+
+UGCLoadingScreenWidget::UGCLoadingScreenWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	BackgroundTexture = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
+		TEXT("/Game/GrandCity/UI/LoadingScreenBackdrop.LoadingScreenBackdrop")));
+}
 
 namespace
 {
@@ -25,6 +33,7 @@ namespace
 void UGCLoadingScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	UTexture2D* LoadedBackground = BackgroundTexture.LoadSynchronous();
 	if (!WidgetTree)
 	{
 		return;
@@ -34,9 +43,9 @@ void UGCLoadingScreenWidget::NativeConstruct()
 	WidgetTree->RootWidget = Canvas;
 
 	UImage* Backdrop = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	if (BackgroundTexture)
+	if (LoadedBackground)
 	{
-		Backdrop->SetBrushFromTexture(BackgroundTexture, false);
+		Backdrop->SetBrushFromTexture(LoadedBackground, false);
 		Backdrop->SetColorAndOpacity(FLinearColor::White);
 	}
 	else
@@ -49,7 +58,7 @@ void UGCLoadingScreenWidget::NativeConstruct()
 		BackdropSlot->SetOffsets(FMargin(0.0f));
 	}
 
-	if (!BackgroundTexture)
+	if (!LoadedBackground)
 	{
 		// Lightweight native skyline silhouettes keep the loading screen self-contained (no texture asset required).
 		auto AddBackdropShape = [this, Canvas](float X0, float Y0, float X1, float Y1, const FLinearColor& Color)
