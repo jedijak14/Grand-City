@@ -10,6 +10,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Vehicle/GCBoatPawn.h"
 #include "World/GCComputerTerminalActor.h"
+#include "World/GCElevatorActor.h"
 
 AGCLocationActor::AGCLocationActor()
 {
@@ -72,7 +73,7 @@ void AGCLocationActor::ApplyDefaultTexts()
 		break;
 	case EGCLocationType::SkyscraperElevator:
 		SetIfEmpty(DisplayName, TEXT("Tower Elevator"));
-		SetIfEmpty(InteractionText, TEXT("Take elevator to the roof"));
+		SetIfEmpty(InteractionText, TEXT("Call elevator to the linked landing"));
 		break;
 	}
 }
@@ -198,8 +199,16 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		break;
 
 	case EGCLocationType::SkyscraperElevator:
-		if (TeleportDestination)
+		if (ElevatorActor && TeleportDestination)
 		{
+			if (!ElevatorActor->CallToFloor(TeleportDestination))
+			{
+				Character->ShowSubtitle(TEXT("Elevator is moving or the destination is unavailable."), 3.0f);
+			}
+		}
+		else if (TeleportDestination)
+		{
+			// Compatibility for older maps; link an AGCElevatorActor to get animated transport.
 			Character->SetActorLocation(TeleportDestination->GetActorLocation() + FVector(0, 0, 120.0f),
 				false, nullptr, ETeleportType::TeleportPhysics);
 		}

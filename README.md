@@ -43,7 +43,7 @@ It creates `/Game/Maps/L_HarborVerticalSlice` with modular storefront facades, g
 street furniture, crosswalks, warm lighting, and a player-car spawn. Run the model importer first
 for the best available vehicle mesh. Details and the unverified editor workflow are in
 `Docs/HARBOR_VERTICAL_SLICE.md`; its procedural architecture remains a placeholder kit, while the harbor surface now uses a configurable CPU-deformed wave grid shared with gameplay queries and stylized boat/low-aircraft wake disturbances. This is an uncompiled, unprofiled development feature—not final AA art. Run the model importer to make the original sunset harbor loading backdrop available to the native loading widget; see `Docs/LOADING_SCREEN_ART.md`.
-`Tools/BuildStarterCity_Editor.py` now places two prototype moving-tread escalators at its airport test markers; see `Docs/ESCALATOR_PROTOTYPE.md`. They are functional blockout actors, not a finished terminal/escalator art set. `Config/DefaultScalability.ini` also provides a UE High preset for testing on capable PCs.
+`Tools/BuildStarterCity_Editor.py` places two moving-tread escalator prototypes at its airport test markers and a moving lobby-to-roof elevator; see `Docs/ESCALATOR_PROTOTYPE.md` and `Docs/ELEVATOR_PROTOTYPE.md`. These are functional blockout systems pending Unreal runtime tests, not finished transport or architectural art. `Config/DefaultScalability.ini` also provides a UE High preset for testing on capable PCs.
 
 ## 3. Put real (high-poly) models in
 

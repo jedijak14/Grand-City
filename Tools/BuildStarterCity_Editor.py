@@ -92,11 +92,38 @@ def main():
         actor.set_actor_label(label, mark_dirty=True)
         mesh_component = actor.get_editor_property("building_mesh")
         if mesh_component:
-            mesh_component.set_static_mesh(cube_mesh)
-            mesh_component.set_relative_scale3d(unreal.Vector(8.0, 8.0, 7.0))
+            if enum_name == "SkyscraperElevator":
+                mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+                mesh_component.set_visibility(False, True)
+            else:
+                mesh_component.set_static_mesh(cube_mesh)
+                mesh_component.set_relative_scale3d(unreal.Vector(8.0, 8.0, 7.0))
+                mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         locations.append(actor)
     locations[3].set_editor_property("flight_destination", locations[4])
     locations[4].set_editor_property("flight_destination", locations[3])
+
+    # A real moving car between the lobby and roof stations, with an open, visible guide shaft.
+    elevator_cls = native_class("GCElevatorActor")
+    elevator = spawn(elevator_cls, (6500.0, 2500.0, 0.0))
+    elevator.set_actor_label("TEST - moving tower elevator car", mark_dirty=True)
+    base_landing = locations[6]
+    roof_landing = spawn(location_cls, (6500.0, 2500.0, 3000.0))
+    roof_landing.set_editor_property("location_type", enum_value(("EGCLocationType", "GCLocationType"), "SkyscraperElevator"))
+    roof_landing.set_actor_label("TEST - tower roof elevator landing", mark_dirty=True)
+    roof_mesh = roof_landing.get_editor_property("building_mesh")
+    if roof_mesh:
+        roof_mesh.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        roof_mesh.set_visibility(False, True)
+    for landing, destination in ((base_landing, roof_landing), (roof_landing, base_landing)):
+        landing.set_editor_property("teleport_destination", destination)
+        landing.set_editor_property("elevator_actor", elevator)
+
+    # Tall guide posts make the motion readable while leaving the cabin visible for testing.
+    for side_x in (-165.0, 165.0):
+        for side_y in (-165.0, 165.0):
+            cube(cube_mesh, (6500.0 + side_x, 2500.0 + side_y, 1500.0),
+                 (0.12, 0.12, 30.0), "TEST - elevator guide post")
 
     # Working moving-tread escalators beside the airport test points. Rails are simple greybox dressing.
     escalator_cls = native_class("GCEscalatorActor")

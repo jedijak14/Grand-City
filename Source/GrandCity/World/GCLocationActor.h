@@ -9,6 +9,7 @@ class UBoxComponent;
 class UStaticMeshComponent;
 class AGCCharacter;
 class AGCBoatPawn;
+class AGCElevatorActor;
 
 /**
  * Interactable world location: hospital (heal), shop (rob it - cash + wanted),
@@ -62,9 +63,13 @@ public:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Location|Airport")
 	AGCLocationActor* FlightDestination = nullptr;
 
-	/** Elevator destination (roof marker actor). */
+	/** Destination landing marker for this elevator call station. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Location|Elevator")
 	AActor* TeleportDestination = nullptr;
+
+	/** Optional moving elevator car shared by the landing stations. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Location|Elevator")
+	AGCElevatorActor* ElevatorActor = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Location|Marina")
 	TSubclassOf<AGCBoatPawn> RentalBoatClass;

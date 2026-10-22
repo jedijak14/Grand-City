@@ -12,6 +12,8 @@
   bounded stylized wake height, slope, and velocity to physics samples and the harbor mesh.
 - `AGCEscalatorActor` circulates instanced treads and gives grounded characters upward movement in
   its ride zone. The starter-map script places two blockout escalators beside airport test markers.
+- `AGCElevatorActor` now runs a one-car lobby-to-roof cycle with a boarding dwell, animated split
+  doors, collision walls, a moving floor, and two linked interaction landings in the starter map.
 - The harbor look-development builder adds a coastal boulevard and procedural facades/props,
   player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile.
 - `Tools/CreateGrandCityArdenGT.py` generates a 176k-triangle original static vehicle prototype.
@@ -23,8 +25,9 @@
 - Python syntax/AST checks and `git diff --check` have passed for the editor scripts and latest
   source changes. These do not validate Unreal APIs or runtime behavior.
 - **No Unreal Engine 5.4 or Visual Studio 2022 compiler is available in this workspace.** The new
-  C++ additions (water wake response and escalator actor), editor material creation, map appearance,
-  collisions, animation, cooking, and performance have not been built or run in Unreal.
+  C++ additions (water wake response, escalator, and elevator actors), editor material creation, map
+  appearance, moving-platform carry, landing overlap, collision, animation, cooking, and performance
+  have not been built or run in Unreal.
 - Water/wake behavior is a stylized empirical model, not a full fluid solver. The CPU surface and
   wake packet count require profiling at the actual target resolution and actor density.
 - The starter map remains greybox. Bathrooms, authored terminal interiors, production escalator
