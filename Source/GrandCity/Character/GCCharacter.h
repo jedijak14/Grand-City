@@ -13,6 +13,7 @@ class UStaticMeshComponent;
 class USkeletalMeshComponent;
 class AGCLocationActor;
 class AGCComputerTerminalActor;
+class AGCOceanManager;
 
 /**
  * Player character: third/first person, sprint, jump, swim, aim & shoot,
@@ -117,6 +118,9 @@ protected:
 	void OnDeath(AActor* Killer);
 
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<AGCOceanManager> OceanManager = nullptr;
+
 	float ClothCheckTimer = 0.0f;
 	bool bSprinting = false;
 	bool bFiring = false;

@@ -15,7 +15,7 @@
 - [x] Flyable plane (thrust/lift/stall/flaps/rudder/gear), boat (buoyancy)
 - [x] HUD (money, wanted, speed/gear/RPM, health/ammo, minimap, WASTED), dev console commands
 - [x] Settings data (blood/waves/grass/cloth toggles, densities, day length) wired into gameplay
-- [x] 15 public GLB starter models + Sketchfab drop-in import pipeline + starter city script
+- [x] 15 public GLB starter models; original 176k-triangle static Arden GT prototype generator + Sketchfab drop-in import pipeline + greybox starter map (editor verification pending)
 
 ## ✅ Phase 1.5 — Water, air & airports (second delivery)
 - [x] Ocean sample upgrade: wave velocity, currents, foam factor; boats ride moving swells,

@@ -1,4 +1,5 @@
 #include "Components/GCDeformationComponent.h"
+
 #include "Components/StaticMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
 #include "ProceduralMeshComponent.h"
@@ -15,40 +16,66 @@ bool UGCDeformationComponent::InitializeFromStaticMesh(UStaticMeshComponent* Sou
 		return false;
 	}
 
+	bInitialized = false;
+	DamageLevel = 0.0f;
+	MeshSections.Reset();
 	ProcMesh = TargetProcMesh;
+	ProcMesh->ClearAllMeshSections();
 	UKismetProceduralMeshLibrary::CopyProceduralMeshFromStaticMeshComponent(Source, 0, ProcMesh, false);
 
-	const FProcMeshSection* Section = ProcMesh->GetProcMeshSection(0);
-	if (!Section || Section->ProcVertexBuffer.Num() == 0)
+	const int32 NumSections = ProcMesh->GetNumSections();
+	if (NumSections <= 0)
 	{
-		// Mesh was probably imported without CPU access. Keep the static mesh visible.
+		// The source may have been imported without CPU access. Keep its static mesh visible.
 		ProcMesh->SetVisibility(false);
 		return false;
 	}
 
-	const int32 NumVerts = Section->ProcVertexBuffer.Num();
-	OriginalPositions.Reset(NumVerts);
-	CurrentPositions.Reset(NumVerts);
-	Normals.Reset(NumVerts);
-	UVs.Reset(NumVerts);
-	Colors.Reset(NumVerts);
-	Tangents.Reset(NumVerts);
-	for (const FProcMeshVertex& V : Section->ProcVertexBuffer)
+	MeshSections.Reset(NumSections);
+	for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 	{
-		OriginalPositions.Add(V.Position);
-		CurrentPositions.Add(V.Position);
-		Normals.Add(V.Normal);
-		UVs.Add(V.UV0);
-		Colors.Add(V.Color);
-		Tangents.Add(V.Tangent);
-	}
-	Indices = Section->ProcIndexBuffer;
+		const FProcMeshSection* ProcSection = ProcMesh->GetProcMeshSection(SectionIndex);
+		if (!ProcSection || ProcSection->ProcVertexBuffer.Num() == 0 || ProcSection->ProcIndexBuffer.Num() == 0)
+		{
+			MeshSections.Reset();
+			ProcMesh->ClearAllMeshSections();
+			ProcMesh->SetVisibility(false);
+			return false;
+		}
 
-	// Physics stays on the vehicle's collision body; this mesh is purely visual.
+		FGCDeformationMeshSection Section;
+		Section.SectionIndex = SectionIndex;
+		const int32 NumVertices = ProcSection->ProcVertexBuffer.Num();
+		Section.OriginalPositions.Reserve(NumVertices);
+		Section.CurrentPositions.Reserve(NumVertices);
+		Section.Normals.Reserve(NumVertices);
+		Section.UVs.Reserve(NumVertices);
+		Section.Colors.Reserve(NumVertices);
+		Section.Tangents.Reserve(NumVertices);
+
+		for (const FProcMeshVertex& Vertex : ProcSection->ProcVertexBuffer)
+		{
+			Section.OriginalPositions.Add(Vertex.Position);
+			Section.CurrentPositions.Add(Vertex.Position);
+			Section.Normals.Add(Vertex.Normal);
+			Section.UVs.Add(Vertex.UV0);
+			Section.Colors.Add(Vertex.Color);
+			Section.Tangents.Add(Vertex.Tangent);
+		}
+
+		Section.Indices.Reserve(ProcSection->ProcIndexBuffer.Num());
+		for (const uint32 Index : ProcSection->ProcIndexBuffer)
+		{
+			Section.Indices.Add(static_cast<int32>(Index));
+		}
+		MeshSections.Add(MoveTemp(Section));
+	}
+
+	// The procedural copy carries the material sections; physics remains on the vehicle's
+	// collision body. Hide the original only after every procedural section was copied.
 	ProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Source->SetVisibility(false);
 	Source->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
 	bInitialized = true;
 	return true;
 }
@@ -60,31 +87,67 @@ void UGCDeformationComponent::ApplyDentLocal(const FVector& LocalPoint, const FV
 		return;
 	}
 
-	const FVector Dir = LocalImpactDirection.GetSafeNormal();
-	bool bChanged = false;
-	for (int32 i = 0; i < CurrentPositions.Num(); ++i)
+	const FVector Direction = LocalImpactDirection.GetSafeNormal();
+	if (Direction.IsNearlyZero())
 	{
-		const float Dist = FVector::Distance(CurrentPositions[i], LocalPoint);
-		if (Dist >= Radius)
-		{
-			continue;
-		}
-		// Smooth crater falloff: deepest at the centre, zero at the rim.
-		const float Falloff = 0.5f + 0.5f * FMath::Cos((Dist / Radius) * PI);
-		FVector NewPos = CurrentPositions[i] + Dir * (Depth * Falloff);
-		const FVector TotalOffset = NewPos - OriginalPositions[i];
-		if (TotalOffset.Size() > MaxVertexDisplacement)
-		{
-			NewPos = OriginalPositions[i] + TotalOffset.GetSafeNormal() * MaxVertexDisplacement;
-		}
-		CurrentPositions[i] = NewPos;
-		bChanged = true;
+		return;
 	}
 
-	if (bChanged)
+	const float RadiusSquared = Radius * Radius;
+	const float DisplacementLimit = FMath::Max(1.0f, MaxVertexDisplacement);
+	float MaximumAppliedDisplacement = 0.0f;
+
+	for (FGCDeformationMeshSection& Section : MeshSections)
 	{
-		DamageLevel = FMath::Clamp(DamageLevel + Depth / 220.0f, 0.0f, 1.0f);
-		RefreshMeshSection();
+		bool bSectionChanged = false;
+		for (int32 VertexIndex = 0; VertexIndex < Section.CurrentPositions.Num(); ++VertexIndex)
+		{
+			const FVector& CurrentPosition = Section.CurrentPositions[VertexIndex];
+			const float DistanceSquared = FVector::DistSquared(CurrentPosition, LocalPoint);
+			if (DistanceSquared >= RadiusSquared)
+			{
+				continue;
+			}
+
+			// Only deform the surface facing the impact. Otherwise a local crash can move
+			// vertices on the far side of a closed body through the cabin and opposite panel.
+			const float Facing = VertexIndex < Section.Normals.Num()
+				? -FVector::DotProduct(Section.Normals[VertexIndex].GetSafeNormal(), Direction)
+				: 0.0f;
+			if (Facing < 0.15f)
+			{
+				continue;
+			}
+
+			const float Distance = FMath::Sqrt(DistanceSquared);
+			const float RadialFalloff = 0.5f + 0.5f * FMath::Cos((Distance / Radius) * PI);
+			const float AppliedDepth = Depth * RadialFalloff * FMath::Clamp(Facing, 0.0f, 1.0f);
+			FVector NewPosition = CurrentPosition + Direction * AppliedDepth;
+			const FVector TotalOffset = NewPosition - Section.OriginalPositions[VertexIndex];
+			if (TotalOffset.SizeSquared() > FMath::Square(DisplacementLimit))
+			{
+				NewPosition = Section.OriginalPositions[VertexIndex]
+					+ TotalOffset.GetSafeNormal() * DisplacementLimit;
+			}
+
+			const float AppliedDisplacement = FVector::Distance(CurrentPosition, NewPosition);
+			if (AppliedDisplacement > KINDA_SMALL_NUMBER)
+			{
+				Section.CurrentPositions[VertexIndex] = NewPosition;
+				MaximumAppliedDisplacement = FMath::Max(MaximumAppliedDisplacement, AppliedDisplacement);
+				bSectionChanged = true;
+			}
+		}
+
+		if (bSectionChanged)
+		{
+			RefreshMeshSection(Section);
+		}
+	}
+
+	if (MaximumAppliedDisplacement > KINDA_SMALL_NUMBER)
+	{
+		DamageLevel = FMath::Clamp(DamageLevel + MaximumAppliedDisplacement / 220.0f, 0.0f, 1.0f);
 	}
 }
 
@@ -95,10 +158,9 @@ void UGCDeformationComponent::ApplyDentWorld(const FVector& WorldPoint, const FV
 		return;
 	}
 	const FVector LocalPoint = ProcMesh->GetComponentTransform().InverseTransformPosition(WorldPoint);
-	const FVector LocalDir = ProcMesh->GetComponentTransform().InverseTransformVectorNoScale(WorldImpactDirection);
-	const float LocalRadius = Radius / FMath::Max(0.01f, ProcMesh->GetComponentScale().GetMax());
-	const float LocalDepth = Depth / FMath::Max(0.01f, ProcMesh->GetComponentScale().GetMax());
-	ApplyDentLocal(LocalPoint, LocalDir, LocalRadius, LocalDepth);
+	const FVector LocalDirection = ProcMesh->GetComponentTransform().InverseTransformVectorNoScale(WorldImpactDirection);
+	const float LargestScale = FMath::Max(0.01f, ProcMesh->GetComponentScale().GetAbsMax());
+	ApplyDentLocal(LocalPoint, LocalDirection, Radius / LargestScale, Depth / LargestScale);
 }
 
 void UGCDeformationComponent::RepairAll()
@@ -107,17 +169,23 @@ void UGCDeformationComponent::RepairAll()
 	{
 		return;
 	}
-	CurrentPositions = OriginalPositions;
+
+	for (FGCDeformationMeshSection& Section : MeshSections)
+	{
+		Section.CurrentPositions = Section.OriginalPositions;
+		RefreshMeshSection(Section);
+	}
 	DamageLevel = 0.0f;
-	RefreshMeshSection();
 }
 
-void UGCDeformationComponent::RefreshMeshSection()
+void UGCDeformationComponent::RefreshMeshSection(FGCDeformationMeshSection& Section)
 {
-	if (!ProcMesh)
+	if (!ProcMesh || Section.SectionIndex == INDEX_NONE)
 	{
 		return;
 	}
-	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(CurrentPositions, Indices, UVs, Normals, Tangents);
-	ProcMesh->UpdateMeshSection_LinearColor(0, CurrentPositions, Normals, UVs, LinearColors, Tangents);
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(
+		Section.CurrentPositions, Section.Indices, Section.UVs, Section.Normals, Section.Tangents);
+	ProcMesh->UpdateMeshSection(Section.SectionIndex, Section.CurrentPositions, Section.Normals,
+		Section.UVs, Section.Colors, Section.Tangents);
 }

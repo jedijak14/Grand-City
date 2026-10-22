@@ -40,12 +40,15 @@ capsule until you assign a skeletal mesh (next step).
 
 ## 3. Put real (high-poly) models in
 
-1. **Starter models:** run `Tools/ImportModels_Editor.py` — imports the 15 public GLBs in
-   `ModelLibrary/PublicGLB/` (animated characters, buggy/truck, planes, animals, village).
-2. **Sketchfab/Fab models:** download with your free account → drop `.glb/.fbx` into
+1. **Starter models:** run `Tools/ImportModels_Editor.py` to import the public GLBs in
+   `ModelLibrary/PublicGLB/` (sample characters, vehicles, aircraft, animals, and village).
+2. **Original vehicle prototype:** run `python -m pip install -r Tools/requirements-models.txt`,
+   then `python Tools/CreateGrandCityArdenGT.py` to generate the 176k-triangle Arden GT visual.
+   It is a static, unrigged prototype and needs Unreal scale/material/collision review before use.
+3. **Sketchfab/Fab models:** download with your free account → drop `.glb/.fbx` into
    `ModelLibrary/SketchfabDropIn/` → run the same importer. Sources & license notes:
    `Docs/MODEL_SOURCES.md`.
-3. Create **Blueprint children** and assign meshes:
+4. Create **Blueprint children** and assign meshes:
    - `BP_Car` (parent `GCVehiclePawn`): set **BodyMesh** (enable *Allow CPU Access* on the
      mesh first for crash denting), set **WheelMesh0–3**, tune **Wheels** offsets/radius,
      engine audio/screech sounds, door mesh on `DriverDoorPivot`. Police version: tick
@@ -54,8 +57,11 @@ capsule until you assign a skeletal mesh (next step).
      `GCAnimInstance`, drive blendspaces from `GroundSpeed/Direction/bAiming/bSeated/...`),
      parachute canopy mesh, optional Chaos-cloth hoodie/hair.
    - `BP_Ped` (parent `GCPedestrian`), `BP_Plane`, `BP_Boat` similarly.
-4. Point the game at your BPs: World Settings → GameMode Override → a BP child of
+5. Point the game at your BPs: World Settings → GameMode Override → a BP child of
    `GCGameMode` with your pawn classes, and set the class slots on `GCWorldSpawner`.
+
+Loading-screen artwork setup and the original gameplay-look mockup are documented in
+`Docs/LOADING_SCREEN_ART.md`. The mockup is concept art, not an Unreal gameplay capture.
 
 ## 4. Controls
 
@@ -93,7 +99,7 @@ Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `G
 - **Phase 2:** `Vehicle/GCSurfboardPawn` (surfboard/paddleboard/raft on the wave field),
   `World/GCGrassFieldActor` (HISM grass, wind phase, settings-gated), `World/GCMarineLifeActor`
   (fish school + dolphins), `UI/GCMainMenuWidget` + `GCSettingsWidget` + `GCLoadingScreenWidget`
-  (asset-free UMG, via `GCMenu`/`GCSettingsMenu`/`GCLoadingTest`), crouch (C), expanded
+  (native UMG with optional loading key art, via `GCMenu`/`GCSettingsMenu`/`GCLoadingTest`), crouch (C), expanded
   `GCAnimInstance` (see `Docs/ANIMATION_SETUP.md`), `AudioSFX/` + `Docs/SFX.md`, voice batch 2
 
 See `ROADMAP.md` for what remains (AnimBP/Niagara editor assets, jobs/phone, packaged-game

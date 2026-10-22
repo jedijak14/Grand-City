@@ -7,6 +7,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "EngineUtils.h"
 #include "World/GCOceanManager.h"
 
 AGCBoatPawn::AGCBoatPawn()
@@ -55,6 +56,24 @@ AGCBoatPawn::AGCBoatPawn()
 	};
 }
 
+void AGCBoatPawn::BeginPlay()
+{
+	Super::BeginPlay();
+	MassKg = FMath::Clamp(FMath::IsFinite(MassKg) ? MassKg : 900.0f, 100.0f, 50000.0f);
+	BuoyancyPerCm = FMath::Clamp(FMath::IsFinite(BuoyancyPerCm) ? BuoyancyPerCm : 150.0f, 1.0f, 5000.0f);
+	WaterDrag = FMath::Clamp(FMath::IsFinite(WaterDrag) ? WaterDrag : 0.35f, 0.0f, 10.0f);
+	float NearestDistanceSq = TNumericLimits<float>::Max();
+	for (TActorIterator<AGCOceanManager> It(GetWorld()); It; ++It)
+	{
+		const float DistanceSq = FVector::DistSquared2D(GetActorLocation(), It->GetActorLocation());
+		if (DistanceSq < NearestDistanceSq)
+		{
+			NearestDistanceSq = DistanceSq;
+			OceanManager = *It;
+		}
+	}
+}
+
 FVector AGCBoatPawn::GetPointVelocity(const FVector& WorldPoint) const
 {
 	return HullBody->GetPhysicsLinearVelocity()
@@ -84,9 +103,11 @@ void AGCBoatPawn::ApplyBuoyancyAndPropulsion(float DeltaSeconds)
 	for (const FVector& LocalPoint : BuoyancyPoints)
 	{
 		const FVector WorldPoint = TM.TransformPosition(LocalPoint);
-		const FGCOceanSample Sample = AGCOceanManager::SampleOceanStatic(
-			FVector2D(WorldPoint.X, WorldPoint.Y), Time, 1.0f);
-		const float SurfaceZ = WaterBaseLevelZ + Sample.Height;
+		const FVector2D WaterXY(WorldPoint.X, WorldPoint.Y);
+		const FGCOceanSample Sample = OceanManager
+			? OceanManager->SampleOcean(WorldPoint)
+			: AGCOceanManager::SampleOceanStatic(WaterXY, Time, 1.0f);
+		const float SurfaceZ = OceanManager ? Sample.Height : WaterBaseLevelZ + Sample.Height;
 		FoamAccum += Sample.FoamFactor;
 		const float DepthCm = SurfaceZ - WorldPoint.Z;
 		if (DepthCm <= 0.0f)
@@ -94,34 +115,28 @@ void AGCBoatPawn::ApplyBuoyancyAndPropulsion(float DeltaSeconds)
 			continue;
 		}
 		++SubmergedPoints;
-		const float ClampedDepth = FMath::Min(DepthCm, 130.0f);
-		float ForceN = ClampedDepth * BuoyancyPerCm;
-		// Damp relative to the moving surface, so the hull rides swells rather than bouncing off them.
-		const float RelativeVerticalVel = GetPointVelocity(WorldPoint).Z - Sample.VerticalVelocity;
-		ForceN -= RelativeVerticalVel * 6.0f;
-		ForceN = FMath::Max(0.0f, ForceN);
-		HullBody->AddForceAtLocation(FVector(0.0f, 0.0f, ForceN * 100.0f), WorldPoint);
+		const float Immersion = FMath::Clamp(DepthCm / 65.0f, 0.0f, 1.0f);
+		const FVector SurfaceVelocity(Sample.SurfaceVelocity.X, Sample.SurfaceVelocity.Y, Sample.VerticalVelocity);
+		const FVector RelativeVelocity = GetPointVelocity(WorldPoint) - SurfaceVelocity;
+		const float SpringForceN = FMath::Min(DepthCm, 130.0f) * BuoyancyPerCm;
+		const float HeaveDampingN = FVector::DotProduct(RelativeVelocity, Sample.Normal) * 6.0f;
+		const float MaxPointForceN = MassKg * 9.8f * 1.75f / FMath::Max(1, BuoyancyPoints.Num());
+		const float ForceN = FMath::Clamp(SpringForceN - HeaveDampingN, 0.0f, MaxPointForceN);
+		// Spring buoyancy plus damping against both wave orbital motion and the background current.
+		HullBody->AddForceAtLocation(Sample.Normal * (ForceN * 100.0f), WorldPoint);
+		HullBody->AddForceAtLocation(-RelativeVelocity * (MassKg * WaterDrag * Immersion
+			/ FMath::Max(1, BuoyancyPoints.Num())), WorldPoint);
 	}
 	LastFoamFactor = BuoyancyPoints.Num() > 0 ? FoamAccum / BuoyancyPoints.Num() : 0.0f;
 	SmoothedThrottle = FMath::FInterpTo(SmoothedThrottle, bAnchored ? 0.0f : InputThrottle, DeltaSeconds, 2.2f);
 
 	if (SubmergedPoints > 0)
 	{
-		// Water drag opposing motion (stronger laterally, so boats do not slide like cars on ice).
+		// Use forward speed only for planing; point forces handle fluid-relative drag.
 		const FVector Vel = HullBody->GetPhysicsLinearVelocity();
 		const FVector Forward = GetActorForwardVector();
-		const FVector Right = GetActorRightVector();
 		const float FwdVel = FVector::DotProduct(Vel, Forward);
-		const float LatVel = FVector::DotProduct(Vel, Right);
-		const FVector DragForce = Forward * (-FwdVel * WaterDrag * MassKg * 0.55f)
-			+ Right * (-LatVel * WaterDrag * MassKg * 2.4f);
-		HullBody->AddForceAtLocation(DragForce * 100.0f / 100.0f, HullBody->GetCenterOfMass());
-
-		// Ocean current pushes the hull toward the surface flow.
-		const FVector Current = AGCOceanManager::GetCurrentAt(
-			FVector2D(GetActorLocation().X, GetActorLocation().Y), Time);
-		const FVector HorizontalVel(Vel.X, Vel.Y, 0.0f);
-		HullBody->AddForceAtLocation((Current - HorizontalVel) * MassKg * 0.045f, HullBody->GetCenterOfMass());
+		// Point drag above already includes yaw velocity and local wave/current flow.
 
 		// Planing: above hull speed the stern generates dynamic lift and the bow rises.
 		const float FwdMps = FwdVel / 100.0f;
