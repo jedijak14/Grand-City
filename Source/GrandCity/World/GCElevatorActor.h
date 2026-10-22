@@ -69,7 +69,7 @@ public:
 	float DoorAlpha = 0.0f;
 
 	UFUNCTION(BlueprintCallable, Category = "Elevator")
-	bool CallToFloor(AActor* FloorMarker);
+	bool CallFromLanding(AActor* CallerLanding, AActor* DestinationLanding);
 
 protected:
 	virtual void BeginPlay() override;
@@ -77,6 +77,9 @@ protected:
 private:
 	TWeakObjectPtr<AActor> RequestedFloor;
 	float TargetZ = 0.0f;
+	float BoardingFloorZ = 0.0f;
+	float DestinationFloorZ = 0.0f;
 	float DwellRemaining = 0.0f;
+	bool bGoingToPickupFloor = false;
 	void SetDoorAlpha(float NewAlpha);
 };

@@ -75,29 +75,40 @@ void AGCElevatorActor::BeginPlay()
 	SetDoorAlpha(0.0f);
 }
 
-bool AGCElevatorActor::CallToFloor(AActor* FloorMarker)
+bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* DestinationLanding)
 {
-	if (!IsValid(FloorMarker) || !GetWorld() || FloorMarker->GetWorld() != GetWorld()
-		|| FVector::DistSquared2D(FloorMarker->GetActorLocation(), GetActorLocation()) > FMath::Square(300.0f)
-		|| State == EGCElevatorState::OpeningDoors || State == EGCElevatorState::Dwelling
-		|| State == EGCElevatorState::ClosingDoors || State == EGCElevatorState::Moving)
+	const bool bBusy = State == EGCElevatorState::OpeningDoors || State == EGCElevatorState::Dwelling
+		|| State == EGCElevatorState::ClosingDoors || State == EGCElevatorState::Moving;
+	if (!IsValid(CallerLanding) || !IsValid(DestinationLanding) || !GetWorld()
+		|| CallerLanding->GetWorld() != GetWorld() || DestinationLanding->GetWorld() != GetWorld()
+		|| FVector::DistSquared2D(CallerLanding->GetActorLocation(), GetActorLocation()) > FMath::Square(300.0f)
+		|| FVector::DistSquared2D(DestinationLanding->GetActorLocation(), GetActorLocation()) > FMath::Square(300.0f)
+		|| FMath::IsNearlyEqual(CallerLanding->GetActorLocation().Z, DestinationLanding->GetActorLocation().Z, 5.0f)
+		|| bBusy)
 	{
 		return false;
 	}
 
-	RequestedFloor = FloorMarker;
-	TargetZ = FloorMarker->GetActorLocation().Z;
-	if (FMath::Abs(TargetZ - GetActorLocation().Z) <= 5.0f)
+	RequestedFloor = DestinationLanding;
+	BoardingFloorZ = CallerLanding->GetActorLocation().Z;
+	DestinationFloorZ = DestinationLanding->GetActorLocation().Z;
+	bGoingToPickupFloor = FMath::Abs(GetActorLocation().Z - BoardingFloorZ) > 5.0f;
+	TargetZ = bGoingToPickupFloor ? BoardingFloorZ : DestinationFloorZ;
+
+	if (bGoingToPickupFloor)
 	{
-		State = EGCElevatorState::OpeningDoors;
+		// The car first travels to the caller. It opens there, boards, dwells, then serves the destination.
+		State = DoorAlpha > KINDA_SMALL_NUMBER
+			? EGCElevatorState::ClosingDoors : EGCElevatorState::Moving;
 	}
 	else if (DoorAlpha > KINDA_SMALL_NUMBER)
 	{
-		State = EGCElevatorState::ClosingDoors;
+		// The car is already here with doors open; start the configured boarding dwell.
+		DwellRemaining = FMath::Clamp(DoorDwellSeconds, 1.0f, 8.0f);
+		State = EGCElevatorState::Dwelling;
 	}
 	else
 	{
-		// First open at the caller's landing so a rider can board before travel begins.
 		State = EGCElevatorState::OpeningDoors;
 	}
 	SetActorTickEnabled(true);
@@ -178,6 +189,11 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 		{
 			NewLocation.Z = TargetZ;
 			SetActorLocation(NewLocation, false, nullptr, ETeleportType::None);
+			if (bGoingToPickupFloor)
+			{
+				bGoingToPickupFloor = false;
+				TargetZ = DestinationFloorZ;
+			}
 			State = EGCElevatorState::OpeningDoors;
 		}
 		break;
