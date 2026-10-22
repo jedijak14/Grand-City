@@ -43,6 +43,7 @@
 - [ ] AnimBP graph assets per imported skeleton (editor work — variables/docs/script provided)
 - [ ] Niagara FX assets: tyre smoke, muzzle flash, blood, crash sparks, boat wake (C++ hooks exist)
 - [ ] Passenger-flight seatback as a UMG widget (currently canvas HUD); second island / OSM city pass
+- [ ] Run and art-review the new `L_HarborVerticalSlice` builder; replace its procedural blockout with authored, licensed assets, trim sheets, decals, and final water material (UE Editor work remains unverified)
 
 ## Phase 3 — Life-sim & shipping (deprioritized by owner, still planned)
 - Job loops: cop (arrest missions), hitman (targets), taxi, medic, shop owner, border patrol,

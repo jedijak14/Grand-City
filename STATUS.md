@@ -20,6 +20,7 @@
 
 ## Not yet verified / blockers
 
+- `Tools/BuildHarborVerticalSlice_Editor.py` and `Config/DefaultScalability.ini` now define an art-directed coastal look-development pass. The editor script is syntax-checked only; the generated map/materials, lighting, collisions, performance, and on-screen result have not been tested.
 - **No Unreal Engine 5.4 or Visual Studio 2022 compiler is available in this workspace.** C++
   still needs an actual Development Editor | Win64 build on the owner's Windows PC. No compile,
   cook, editor launch, or gameplay test is claimed.

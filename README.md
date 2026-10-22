@@ -38,6 +38,13 @@ The C++ `AGCGameMode` already sets the player pawn, controller, HUD and player s
 The car has fallback engine-shape meshes so it is visible immediately; the character is a
 capsule until you assign a skeletal mesh (next step).
 
+For a denser coastal look-development scene, run `Tools/BuildHarborVerticalSlice_Editor.py`.
+It creates `/Game/Maps/L_HarborVerticalSlice` with modular storefront facades, glazing, palms,
+street furniture, crosswalks, warm lighting, and a player-car spawn. Run the model importer first
+for the best available vehicle mesh. Details and the unverified editor workflow are in
+`Docs/HARBOR_VERTICAL_SLICE.md`; its procedural architecture is a placeholder kit, not final AA art.
+`Config/DefaultScalability.ini` also provides a UE High preset for testing on capable PCs.
+
 ## 3. Put real (high-poly) models in
 
 1. **Starter models:** run `Tools/ImportModels_Editor.py` to import the public GLBs in

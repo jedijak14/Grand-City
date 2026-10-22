@@ -15,7 +15,9 @@ AGCDayNightManager::AGCDayNightManager()
 	SunLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("SunLight"));
 	SunLight->SetupAttachment(Root);
 	SunLight->SetMobility(EComponentMobility::Movable);
-	SunLight->SetIntensity(3.0f);
+	// UE5 directional-light units are lux; use a physically plausible sun scale for Lumen/exposure.
+	SunLight->SetIntensity(80000.0f);
+	SunLight->bAtmosphereSunLight = true;
 	SunLight->bEnableLightShaftOcclusion = true;
 
 	MoonLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("MoonLight"));
@@ -84,7 +86,7 @@ void AGCDayNightManager::ApplyTimeOfDay()
 
 	SunLight->SetWorldRotation(FRotator(-ElevationDeg, Azimuth, 0.0f));
 	const float DayIntensity = FMath::Clamp(ElevationSin, 0.0f, 1.0f);
-	SunLight->SetIntensity(DayIntensity * 3.2f);
+	SunLight->SetIntensity(DayIntensity * 80000.0f);
 	SunLight->SetLightColor(FLinearColor::LerpUsingHSV(
 		FLinearColor(1.0f, 0.45f, 0.2f), FLinearColor(1.0f, 0.96f, 0.88f), DayIntensity));
 
