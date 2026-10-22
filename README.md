@@ -8,11 +8,11 @@ plane, buoyancy boats, parachuting, day/night with real constellations, robbable
 a hospital, airports with bookable flights, and a settings-backed world you drive with
 free high-poly models you drop in.
 
-> ⚠️ **Build status:** the code was authored in an environment without Unreal Engine,
-> so it has **not been compiled yet**. Expect a few first-compile fixes — build it, then
-> paste the error list back to your assistant and they'll be fixed in rounds. This is normal
-> for C++ UE5 work. Everything is also in a local **git repo with LFS rules**, ready to push
-> to GitHub (`git lfs install`, add your remote, push).
+> ⚠️ **Build status:** the source tree is now arranged as an Unreal Engine C++ project and
+> the missing native UI classes have been added, but this code has not yet been compiled with
+> Unreal Engine 5.4 and Visual Studio 2022. No compile, cook, or gameplay result is claimed.
+> `.gitattributes` marks model and Unreal binary assets for Git LFS; the existing model blobs
+> still need LFS migration before a release-quality source push.
 
 ## 1. Build it
 
@@ -89,7 +89,7 @@ Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `G
 - `Components/GCVoiceLineComponent` — check-in staff, cabin crew, captain and NPC voice
   lines with subtitles (script + wiring in `Docs/VOICE_LINES.md`, audio in `AudioVoice/`)
 - `Core/*` + `UI/GCHUD` — game mode, wanted/money, settings (`GCGameUserSettings`: blood,
-  waves, grass, cloth/hair, densities, day length), canvas HUD + minimap, dev commands
+  waves, grass, cloth/hair, densities, day length), native money/wanted/health/speed HUD, dev commands
 - **Phase 2:** `Vehicle/GCSurfboardPawn` (surfboard/paddleboard/raft on the wave field),
   `World/GCGrassFieldActor` (HISM grass, wind phase, settings-gated), `World/GCMarineLifeActor`
   (fish school + dolphins), `UI/GCMainMenuWidget` + `GCSettingsWidget` + `GCLoadingScreenWidget`

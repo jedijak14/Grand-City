@@ -37,7 +37,7 @@
       wired through `GCPlayerController` (`GCMenu` / `GCSettingsMenu` / `GCLoadingTest`, optional menu-on-start)
 - [x] Crouch (hold C), expanded `GCAnimInstance` data (local velocity, lean, aim offsets,
       crouch/dead, vehicle steering) + `Docs/ANIMATION_SETUP.md` + AnimBP shell script
-- [x] Synthesized SFX set (17 WAVs in `AudioSFX/`, generator `Tools/GenerateSFX.py`, wiring `Docs/SFX.md`)
+- [x] Synthesized SFX set (17 WAVs in `AudioSFX/`, wiring `Docs/SFX.md`; the original generator script was not included in the current upload)
 - [x] Voice batch 2 recorded — all 20 scripted lines now have audio (`AudioVoice/`)
 - [x] Cloth/hair settings toggle now consumed by the character (HoodieMesh/HairMesh visibility)
 - [ ] AnimBP graph assets per imported skeleton (editor work — variables/docs/script provided)

@@ -5,6 +5,9 @@
 #include "GCPlayerController.generated.h"
 
 class AGCVehiclePawn;
+class UGCMainMenuWidget;
+class UGCSettingsWidget;
+class UGCLoadingScreenWidget;
 
 /**
  * Player controller: wanted-decay visibility checks + dev console commands.
@@ -18,6 +21,7 @@ class GRANDCITY_API AGCPlayerController : public APlayerController
 public:
 	AGCPlayerController();
 
+	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Dev")
