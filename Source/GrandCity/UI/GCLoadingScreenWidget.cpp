@@ -34,43 +34,54 @@ void UGCLoadingScreenWidget::NativeConstruct()
 	WidgetTree->RootWidget = Canvas;
 
 	UImage* Backdrop = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	Backdrop->SetColorAndOpacity(GCLoadingInk);
+	if (BackgroundTexture)
+	{
+		Backdrop->SetBrushFromTexture(BackgroundTexture, false);
+		Backdrop->SetColorAndOpacity(FLinearColor::White);
+	}
+	else
+	{
+		Backdrop->SetColorAndOpacity(GCLoadingInk);
+	}
 	if (UCanvasPanelSlot* BackdropSlot = Canvas->AddChildToCanvas(Backdrop))
 	{
 		BackdropSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 		BackdropSlot->SetOffsets(FMargin(0.0f));
 	}
 
-	// Lightweight native skyline silhouettes keep the loading screen self-contained (no texture asset required).
-	auto AddBackdropShape = [this, Canvas](float X0, float Y0, float X1, float Y1, const FLinearColor& Color)
+	if (!BackgroundTexture)
 	{
-		UBorder* Shape = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-		Shape->SetBrushColor(Color);
-		if (UCanvasPanelSlot* ShapeSlot = Canvas->AddChildToCanvas(Shape))
+		// Lightweight native skyline silhouettes keep the loading screen self-contained (no texture asset required).
+		auto AddBackdropShape = [this, Canvas](float X0, float Y0, float X1, float Y1, const FLinearColor& Color)
 		{
-			ShapeSlot->SetAnchors(FAnchors(X0, Y0, X1, Y1));
-			ShapeSlot->SetOffsets(FMargin(0.0f));
+			UBorder* Shape = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+			Shape->SetBrushColor(Color);
+			if (UCanvasPanelSlot* ShapeSlot = Canvas->AddChildToCanvas(Shape))
+			{
+				ShapeSlot->SetAnchors(FAnchors(X0, Y0, X1, Y1));
+				ShapeSlot->SetOffsets(FMargin(0.0f));
+			}
+		};
+		AddBackdropShape(0.0f, 0.67f, 1.0f, 0.91f, FLinearColor(0.012f, 0.042f, 0.060f, 1.0f));
+		const float Skyline[][3] = {
+			{ 0.00f, 0.53f, 0.07f }, { 0.08f, 0.49f, 0.05f }, { 0.15f, 0.56f, 0.08f },
+			{ 0.25f, 0.46f, 0.06f }, { 0.33f, 0.51f, 0.09f }, { 0.44f, 0.44f, 0.07f },
+			{ 0.53f, 0.50f, 0.08f }, { 0.63f, 0.42f, 0.06f }, { 0.71f, 0.48f, 0.08f },
+			{ 0.81f, 0.43f, 0.07f }, { 0.90f, 0.49f, 0.06f }, { 0.97f, 0.54f, 0.03f }
+		};
+		for (const float (&Building)[3] : Skyline)
+		{
+			AddBackdropShape(Building[0], Building[1], Building[0] + Building[2], 0.70f,
+				FLinearColor(0.025f, 0.075f, 0.095f, 1.0f));
 		}
-	};
-	AddBackdropShape(0.0f, 0.67f, 1.0f, 0.91f, FLinearColor(0.012f, 0.042f, 0.060f, 1.0f));
-	const float Skyline[][3] = {
-		{ 0.00f, 0.53f, 0.07f }, { 0.08f, 0.49f, 0.05f }, { 0.15f, 0.56f, 0.08f },
-		{ 0.25f, 0.46f, 0.06f }, { 0.33f, 0.51f, 0.09f }, { 0.44f, 0.44f, 0.07f },
-		{ 0.53f, 0.50f, 0.08f }, { 0.63f, 0.42f, 0.06f }, { 0.71f, 0.48f, 0.08f },
-		{ 0.81f, 0.43f, 0.07f }, { 0.90f, 0.49f, 0.06f }, { 0.97f, 0.54f, 0.03f }
-	};
-	for (const float (&Building)[3] : Skyline)
-	{
-		AddBackdropShape(Building[0], Building[1], Building[0] + Building[2], 0.70f,
-			FLinearColor(0.025f, 0.075f, 0.095f, 1.0f));
-	}
-	AddBackdropShape(0.0f, 0.91f, 1.0f, 1.0f, FLinearColor(0.009f, 0.028f, 0.045f, 1.0f));
-	for (int32 Reflection = 0; Reflection < 11; ++Reflection)
-	{
-		const float X = 0.36f + 0.047f * Reflection;
-		const float Y = 0.75f + 0.016f * (Reflection % 4);
-		AddBackdropShape(X, Y, X + 0.09f + 0.012f * (Reflection % 3), Y + 0.0025f,
-			FLinearColor(0.07f, 0.24f, 0.27f, 0.72f));
+		AddBackdropShape(0.0f, 0.91f, 1.0f, 1.0f, FLinearColor(0.009f, 0.028f, 0.045f, 1.0f));
+		for (int32 Reflection = 0; Reflection < 11; ++Reflection)
+		{
+			const float X = 0.36f + 0.047f * Reflection;
+			const float Y = 0.75f + 0.016f * (Reflection % 4);
+			AddBackdropShape(X, Y, X + 0.09f + 0.012f * (Reflection % 3), Y + 0.0025f,
+				FLinearColor(0.07f, 0.24f, 0.27f, 0.72f));
+		}
 	}
 
 	UVerticalBox* BrandStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());

@@ -60,6 +60,9 @@ capsule until you assign a skeletal mesh (next step).
 5. Point the game at your BPs: World Settings → GameMode Override → a BP child of
    `GCGameMode` with your pawn classes, and set the class slots on `GCWorldSpawner`.
 
+Loading-screen artwork setup and the original gameplay-look mockup are documented in
+`Docs/LOADING_SCREEN_ART.md`. The mockup is concept art, not an Unreal gameplay capture.
+
 ## 4. Controls
 
 | Context | Keys |
@@ -96,7 +99,7 @@ Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `G
 - **Phase 2:** `Vehicle/GCSurfboardPawn` (surfboard/paddleboard/raft on the wave field),
   `World/GCGrassFieldActor` (HISM grass, wind phase, settings-gated), `World/GCMarineLifeActor`
   (fish school + dolphins), `UI/GCMainMenuWidget` + `GCSettingsWidget` + `GCLoadingScreenWidget`
-  (asset-free UMG, via `GCMenu`/`GCSettingsMenu`/`GCLoadingTest`), crouch (C), expanded
+  (native UMG with optional loading key art, via `GCMenu`/`GCSettingsMenu`/`GCLoadingTest`), crouch (C), expanded
   `GCAnimInstance` (see `Docs/ANIMATION_SETUP.md`), `AudioSFX/` + `Docs/SFX.md`, voice batch 2
 
 See `ROADMAP.md` for what remains (AnimBP/Niagara editor assets, jobs/phone, packaged-game
