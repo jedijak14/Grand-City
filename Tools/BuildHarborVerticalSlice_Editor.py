@@ -288,16 +288,17 @@ def main():
             add_signal(cube_mesh, mats, sign * 1810.0, y, sign, signal_index)
             signal_index += 1
 
-    # Waterfront boardwalk and simple harbor water plane. Replace the water surface material
-    # with the project's matching wave-WPO material before treating this as a final presentation map.
+    # A modest fixed-resolution procedural grid deforms with the same analytic wave equations
+    # used by gameplay buoyancy/query code. Tune extent and resolution after profiling in UE.
     box(cube_mesh, mats, "limestone", (9200.0, 0.0, 14.0), (30.0, 1000.0, 0.18), "HARBOR - public pier boardwalk")
     ocean = unreal.EditorLevelLibrary.spawn_actor_from_class(
         native_class("GCOceanManager"), unreal.Vector(70000.0, 0.0, 0.0), unreal.Rotator()
     )
-    ocean.get_editor_property("water_mesh").set_static_mesh(plane_mesh)
-    ocean.get_editor_property("water_mesh").set_world_scale3d(unreal.Vector(1200.0, 2000.0, 1.0))
-    ocean.get_editor_property("water_mesh").set_material(0, mats["water"])
-    ocean.set_actor_label("HARBOR - ocean query and visual surface placeholder", mark_dirty=True)
+    ocean.set_editor_property("b_generate_visual_surface", True)
+    ocean.set_editor_property("visual_surface_half_extent", unreal.Vector2D(60000.0, 100000.0))
+    ocean.set_editor_property("visual_surface_grid_resolution", 128)
+    ocean.get_editor_property("wave_surface").set_material(0, mats["water"])
+    ocean.set_actor_label("HARBOR - animated analytic wave surface", mark_dirty=True)
 
     # Game systems and a late-afternoon third-person starting position facing down the boulevard.
     spawn(native_class("GCWorldSpawner"), (0.0, 0.0, 0.0))

@@ -5,8 +5,9 @@
 AA art and not evidence of an Unreal render. The editor script assembles reusable flat-color PBR
 materials, a waterfront boulevard, scored sidewalks, crosswalks, custom mixed-use facades with
 recessed glazing, palms, street lights, signals, a boardwalk, an ocean query surface, a player
-start, and the native gameplay systems. It also creates a high-preset scalability profile for
-high-end PC presentation.
+start, and the native gameplay systems. Its harbor water is a CPU-deformed procedural grid driven
+by the same analytic wave queries used by buoyancy, updating at a configurable capped rate. It also
+creates a high-preset scalability profile for high-end PC presentation.
 
 ## Run it in Unreal Editor
 
@@ -20,8 +21,10 @@ high-end PC presentation.
 
 The scene setup adds the existing day/night manager with a UE5-lux-scale sun source, a sky atmosphere,
 optional exponential fog, and a restrained post-process volume where the installed UE Python API exposes those settings.
-The water surface is intentionally labeled a placeholder: its material does not yet implement
-wave World Position Offset, so the visuals and the analytic water physics are not fully matched.
+The water surface now deforms to the analytic gameplay wave field rather than relying on a flat
+plane or a separate material-only wave approximation. It is still a development implementation:
+profile the CPU mesh updates, inspect the normals/material response, and replace it with a scalable
+GPU-driven or UE Water implementation if the target-world footprint or frame budget requires it.
 
 ## Verification status
 

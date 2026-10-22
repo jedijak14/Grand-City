@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "ProceduralMeshComponent.h"
 #include "GCOceanManager.generated.h"
 
 class UStaticMeshComponent;
@@ -52,8 +53,28 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ocean")
 	UStaticMeshComponent* WaterMesh;
 
+	/** Optional CPU-deformed surface that uses the same analytic waves as buoyancy queries. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ocean|Visuals")
+	UProceduralMeshComponent* WaveSurface;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ocean|Visuals")
+	bool bGenerateVisualSurface = false;
+
+	/** Half-size in centimetres; place the ocean actor so this surface covers the playable coastline. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ocean|Visuals", meta = (ClampMin = "1000.0"))
+	FVector2D VisualSurfaceHalfExtent = FVector2D(60000.0, 100000.0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ocean|Visuals", meta = (ClampMin = "8", ClampMax = "256"))
+	int32 VisualSurfaceGridResolution = 128;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ocean|Visuals", meta = (ClampMin = "0.016", ClampMax = "0.25"))
+	float VisualSurfaceUpdateInterval = 0.033f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ocean")
 	float AmplitudeScale = 1.0f;
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** World-space wave height (cm, absolute Z of the surface if the ocean actor sits at Z=BaseLevel). */
 	UFUNCTION(BlueprintCallable, Category = "Ocean")
@@ -81,4 +102,16 @@ public:
 	FGCOceanSample SampleOcean(const FVector& WorldLocation) const;
 
 	static FGCOceanSample SampleOceanStatic(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale);
+
+private:
+	void BuildVisualSurface();
+	void UpdateVisualSurface();
+
+	float VisualSurfaceUpdateAccumulator = 0.0f;
+	TArray<FVector> VisualSurfaceVertices;
+	TArray<FVector> VisualSurfaceNormals;
+	TArray<FVector2D> VisualSurfaceUVs;
+	TArray<FLinearColor> VisualSurfaceColors;
+	TArray<FProcMeshTangent> VisualSurfaceTangents;
+	TArray<int32> VisualSurfaceTriangles;
 };

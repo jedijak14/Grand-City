@@ -4,12 +4,130 @@
 
 AGCOceanManager::AGCOceanManager()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	Tags.Add(TEXT("Water"));
 
 	WaterMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WaterMesh"));
 	RootComponent = WaterMesh;
 	WaterMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	WaveSurface = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("WaveSurface"));
+	WaveSurface->SetupAttachment(RootComponent);
+	WaveSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AGCOceanManager::BeginPlay()
+{
+	Super::BeginPlay();
+	if (!bGenerateVisualSurface || !WaveSurface)
+	{
+		return;
+	}
+
+	// Keep compatibility with maps that assign the material to the legacy root component.
+	if (!WaveSurface->GetMaterial(0) && WaterMesh->GetMaterial(0))
+	{
+		WaveSurface->SetMaterial(0, WaterMesh->GetMaterial(0));
+	}
+	BuildVisualSurface();
+	UpdateVisualSurface();
+	SetActorTickEnabled(true);
+}
+
+void AGCOceanManager::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!bGenerateVisualSurface || !WaveSurface)
+	{
+		return;
+	}
+
+	VisualSurfaceUpdateAccumulator += DeltaSeconds;
+	const float UpdateInterval = FMath::Clamp(VisualSurfaceUpdateInterval, 0.016f, 0.25f);
+	if (VisualSurfaceUpdateAccumulator >= UpdateInterval)
+	{
+		VisualSurfaceUpdateAccumulator = FMath::Fmod(VisualSurfaceUpdateAccumulator, UpdateInterval);
+		UpdateVisualSurface();
+	}
+}
+
+void AGCOceanManager::BuildVisualSurface()
+{
+	if (!WaveSurface)
+	{
+		return;
+	}
+
+	const int32 Resolution = FMath::Clamp(VisualSurfaceGridResolution, 8, 256);
+	const int32 Side = Resolution + 1;
+	const int32 VertexCount = Side * Side;
+	const FVector2D Extent(FMath::Max(1000.0f, VisualSurfaceHalfExtent.X), FMath::Max(1000.0f, VisualSurfaceHalfExtent.Y));
+	VisualSurfaceVertices.SetNumUninitialized(VertexCount);
+	VisualSurfaceNormals.Init(FVector::UpVector, VertexCount);
+	VisualSurfaceUVs.SetNumUninitialized(VertexCount);
+	VisualSurfaceColors.Init(FLinearColor::White, VertexCount);
+	VisualSurfaceTangents.Init(FProcMeshTangent(FVector::ForwardVector, false), VertexCount);
+	VisualSurfaceTriangles.Reset(Resolution * Resolution * 6);
+
+	for (int32 Y = 0; Y < Side; ++Y)
+	{
+		for (int32 X = 0; X < Side; ++X)
+		{
+			const int32 Index = Y * Side + X;
+			VisualSurfaceVertices[Index] = FVector(-Extent.X + (2.0f * Extent.X * X / Resolution),
+				-Extent.Y + (2.0f * Extent.Y * Y / Resolution), 0.0f);
+			VisualSurfaceUVs[Index] = FVector2D(static_cast<float>(X) / Resolution, static_cast<float>(Y) / Resolution);
+		}
+	}
+
+	for (int32 Y = 0; Y < Resolution; ++Y)
+	{
+		for (int32 X = 0; X < Resolution; ++X)
+		{
+			const int32 I = Y * Side + X;
+			VisualSurfaceTriangles.Add(I);
+			VisualSurfaceTriangles.Add(I + 1);
+			VisualSurfaceTriangles.Add(I + Side);
+			VisualSurfaceTriangles.Add(I + 1);
+			VisualSurfaceTriangles.Add(I + Side + 1);
+			VisualSurfaceTriangles.Add(I + Side);
+		}
+	}
+
+	WaveSurface->CreateMeshSection_LinearColor(0, VisualSurfaceVertices, VisualSurfaceTriangles,
+		VisualSurfaceNormals, VisualSurfaceUVs, VisualSurfaceColors, VisualSurfaceTangents, false);
+}
+
+void AGCOceanManager::UpdateVisualSurface()
+{
+	if (!WaveSurface || VisualSurfaceVertices.IsEmpty())
+	{
+		return;
+	}
+
+	const int32 Resolution = FMath::Clamp(VisualSurfaceGridResolution, 8, 256);
+	const int32 Side = Resolution + 1;
+	const FVector2D Extent(FMath::Max(1000.0f, VisualSurfaceHalfExtent.X), FMath::Max(1000.0f, VisualSurfaceHalfExtent.Y));
+	const FVector ActorLocation = GetActorLocation();
+	const float TimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
+	for (int32 Y = 0; Y < Side; ++Y)
+	{
+		for (int32 X = 0; X < Side; ++X)
+		{
+			const int32 Index = Y * Side + X;
+			const float LocalX = -Extent.X + (2.0f * Extent.X * X / Resolution);
+			const float LocalY = -Extent.Y + (2.0f * Extent.Y * Y / Resolution);
+			const FVector2D WorldXY(ActorLocation.X + LocalX, ActorLocation.Y + LocalY);
+			const float Height = GetWaveHeightAt(WorldXY, TimeSeconds, AmplitudeScale);
+			VisualSurfaceVertices[Index] = FVector(LocalX, LocalY, Height);
+			VisualSurfaceNormals[Index] = GetWaveNormalAt(WorldXY, TimeSeconds, AmplitudeScale);
+		}
+	}
+
+	WaveSurface->UpdateMeshSection_LinearColor(0, VisualSurfaceVertices, VisualSurfaceNormals,
+		VisualSurfaceUVs, VisualSurfaceColors, VisualSurfaceTangents);
 }
 
 float AGCOceanManager::GetWaveHeightAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale)
