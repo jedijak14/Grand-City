@@ -25,6 +25,7 @@ AGCEscalatorActor::AGCEscalatorActor()
 	Treads->SetupAttachment(SceneRoot);
 	Treads->SetMobility(EComponentMobility::Movable);
 	Treads->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	Treads->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	Treads->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
 	RideTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("RideTrigger"));
@@ -54,6 +55,15 @@ void AGCEscalatorActor::BeginPlay()
 	RideTrigger->OnComponentBeginOverlap.AddDynamic(this, &AGCEscalatorActor::OnRideBegin);
 	RideTrigger->OnComponentEndOverlap.AddDynamic(this, &AGCEscalatorActor::OnRideEnd);
 	UpdateTreadTransforms();
+}
+
+void AGCEscalatorActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	for (int32 Index = Riders.Num() - 1; Index >= 0; --Index)
+	{
+		RestoreRider(Index);
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 void AGCEscalatorActor::RebuildPathAndTreads()
@@ -96,6 +106,7 @@ void AGCEscalatorActor::RebuildPathAndTreads()
 	Treads->SetStaticMesh(TreadMesh);
 	Treads->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Treads->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	Treads->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	const int32 Count = FMath::Clamp(StepCount, 8, 64);
 	const float PathLength = TreadPath->GetSplineLength();
 	if (PathLength <= KINDA_SMALL_NUMBER || !TreadMesh)
@@ -168,16 +179,17 @@ void AGCEscalatorActor::Tick(float DeltaSeconds)
 	const float Rise = FMath::Max(100.0f, RampRiseCm);
 	for (int32 Index = Riders.Num() - 1; Index >= 0; --Index)
 	{
-		ACharacter* Rider = Riders[Index].Get();
+		ACharacter* Rider = Riders[Index].Character.Get();
 		if (!IsValid(Rider))
 		{
 			Riders.RemoveAt(Index);
 			continue;
 		}
 
-		const UCharacterMovementComponent* Movement = Rider->GetCharacterMovement();
-		if (!Movement || Movement->IsFalling())
+		UCharacterMovementComponent* Movement = Rider->GetCharacterMovement();
+		if (!Movement)
 		{
+			RestoreRider(Index);
 			continue;
 		}
 
@@ -191,14 +203,16 @@ void AGCEscalatorActor::Tick(float DeltaSeconds)
 			|| HeightAboveTread < CharacterHalfHeight * 0.35f
 			|| HeightAboveTread > CharacterHalfHeight * 2.2f)
 		{
+			RestoreRider(Index);
 			continue;
 		}
 
 		const FVector LocalRideDirection = FVector(1.0f, 0.0f, Rise / Run).GetSafeNormal();
 		const FVector WorldRideDirection = GetActorTransform().TransformVectorNoScale(LocalRideDirection).GetSafeNormal();
-		const float InputScale = FMath::Clamp(SafeStepSpeed / FMath::Max(1.0f, Movement->MaxWalkSpeed), 0.05f, 0.25f);
-		// Feed movement through CharacterMovement so it can step over tread risers and respect collision.
-		Movement->AddInputVector(WorldRideDirection * InputScale, true);
+		// Walking mode discards vertical input, so riders use collision-swept flying movement while
+		// inside the escalator's ride corridor. Treads overlap Pawns to avoid blocking the capsule.
+		Movement->MaxFlySpeed = SafeStepSpeed;
+		Movement->AddInputVector(WorldRideDirection, true);
 	}
 }
 
@@ -207,10 +221,25 @@ void AGCEscalatorActor::OnRideBegin(UPrimitiveComponent* OverlappedComponent, AA
 {
 	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
 	{
-		const TWeakObjectPtr<ACharacter> WeakCharacter(Character);
-		if (!Riders.Contains(WeakCharacter))
+		UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+		if (!Movement || Movement->IsFalling())
 		{
-			Riders.Add(WeakCharacter);
+			return;
+		}
+
+		const bool bAlreadyRiding = Riders.ContainsByPredicate([Character](const FRiderState& State)
+		{
+			return State.Character.Get() == Character;
+		});
+		if (!bAlreadyRiding)
+		{
+			FRiderState State;
+			State.Character = Character;
+			State.PreviousMovementMode = static_cast<uint8>(Movement->MovementMode);
+			State.PreviousCustomMovementMode = Movement->CustomMovementMode;
+			State.PreviousMaxFlySpeed = Movement->MaxFlySpeed;
+			Riders.Add(State);
+			Movement->SetMovementMode(MOVE_Flying);
 		}
 	}
 }
@@ -220,9 +249,31 @@ void AGCEscalatorActor::OnRideEnd(UPrimitiveComponent* OverlappedComponent, AAct
 {
 	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
 	{
-		Riders.RemoveAll([Character](const TWeakObjectPtr<ACharacter>& Rider)
+		for (int32 Index = Riders.Num() - 1; Index >= 0; --Index)
 		{
-			return !Rider.IsValid() || Rider.Get() == Character;
-		});
+			if (!Riders[Index].Character.IsValid() || Riders[Index].Character.Get() == Character)
+			{
+				RestoreRider(Index);
+			}
+		}
+	}
+}
+
+void AGCEscalatorActor::RestoreRider(int32 Index)
+{
+	if (!Riders.IsValidIndex(Index))
+	{
+		return;
+	}
+
+	const FRiderState State = Riders[Index];
+	Riders.RemoveAt(Index);
+	if (ACharacter* Character = State.Character.Get())
+	{
+		if (UCharacterMovementComponent* Movement = Character->GetCharacterMovement())
+		{
+			Movement->MaxFlySpeed = State.PreviousMaxFlySpeed;
+			Movement->SetMovementMode(static_cast<EMovementMode>(State.PreviousMovementMode), State.PreviousCustomMovementMode);
+		}
 	}
 }
