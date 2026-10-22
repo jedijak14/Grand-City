@@ -1,0 +1,27 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.4",
+	"Category": "Games",
+	"Description": "Grand City - open world sandbox. C++ core: raycast vehicle physics, crash deformation, character/vehicle/plane/boat sandbox, police & traffic AI.",
+	"Modules": [
+		{
+			"Name": "GrandCity",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ProceduralMeshComponent",
+			"Enabled": true
+		},
+		{
+			"Name": "Water",
+			"Enabled": true
+		},
+		{
+			"Name": "ChaosVehicles",
+			"Enabled": false
+		}
+	]
+}
