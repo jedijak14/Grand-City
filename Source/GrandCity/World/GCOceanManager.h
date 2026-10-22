@@ -121,7 +121,8 @@ public:
 private:
 	void BuildVisualSurface();
 	void UpdateVisualSurface();
-	float GetWakeHeightAt(const FVector2D& XY, float TimeSeconds) const;
+	float GetWakeHeightAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const;
+	FVector GetWakeSurfaceVelocityAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const;
 
 	TArray<FGCWaterWakeImpulse> ActiveWakeImpulses;
 	float VisualSurfaceUpdateAccumulator = 0.0f;

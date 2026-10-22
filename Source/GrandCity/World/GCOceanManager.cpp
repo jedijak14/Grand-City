@@ -2,6 +2,17 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCGameUserSettings.h"
 
+namespace
+{
+	float EvaluateBaseWaveHeight(const FVector2D& XY, float TimeSeconds, float Amplitude)
+	{
+		const float P0 = 0.0016f * XY.X + 0.0011f * XY.Y + TimeSeconds * 0.9f;
+		const float P1 = -0.0023f * XY.X + 0.0028f * XY.Y + TimeSeconds * 1.35f;
+		const float P2 = 0.0061f * XY.X - 0.0052f * XY.Y + TimeSeconds * 2.2f;
+		return Amplitude * (26.0f * FMath::Sin(P0) + 15.0f * FMath::Sin(P1) + 7.0f * FMath::Sin(P2));
+	}
+}
+
 AGCOceanManager::AGCOceanManager()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -121,6 +132,10 @@ void AGCOceanManager::UpdateVisualSurface()
 	const FVector2D Extent(FMath::Max(1000.0f, VisualSurfaceHalfExtent.X), FMath::Max(1000.0f, VisualSurfaceHalfExtent.Y));
 	const FVector ActorLocation = GetActorLocation();
 	const float TimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
+	const bool bWavesEnabled = !Settings || Settings->bWavesEnabled;
+	const float VisualAmplitude = bWavesEnabled
+		? FMath::Clamp(FMath::IsFinite(AmplitudeScale) ? AmplitudeScale : 0.0f, 0.0f, 4.0f) : 0.0f;
 
 	for (int32 Y = 0; Y < Side; ++Y)
 	{
@@ -130,14 +145,15 @@ void AGCOceanManager::UpdateVisualSurface()
 			const float LocalX = -Extent.X + (2.0f * Extent.X * X / Resolution);
 			const float LocalY = -Extent.Y + (2.0f * Extent.Y * Y / Resolution);
 			const FVector2D WorldXY(ActorLocation.X + LocalX, ActorLocation.Y + LocalY);
-			const float Height = GetWaveHeightAt(WorldXY, TimeSeconds, AmplitudeScale)
-				+ GetWakeHeightAt(WorldXY, TimeSeconds);
+			const float Height = EvaluateBaseWaveHeight(WorldXY, TimeSeconds, VisualAmplitude)
+				+ GetWakeHeightAt(WorldXY, TimeSeconds, bWavesEnabled);
 			VisualSurfaceVertices[Index] = FVector(LocalX, LocalY, Height);
 		}
 	}
 
 	const float StepX = (2.0f * Extent.X) / Resolution;
 	const float StepY = (2.0f * Extent.Y) / Resolution;
+	const float SafeAmplitude = FMath::Max(0.01f, FMath::Abs(VisualAmplitude));
 	for (int32 Y = 0; Y < Side; ++Y)
 	{
 		for (int32 X = 0; X < Side; ++X)
@@ -152,7 +168,6 @@ void AGCOceanManager::UpdateVisualSurface()
 			const float SlopeY = (VisualSurfaceVertices[Up].Z - VisualSurfaceVertices[Down].Z) / Ddy;
 			const FVector Normal = FVector(-SlopeX, -SlopeY, 1.0f).GetSafeNormal();
 			VisualSurfaceNormals[Y * Side + X] = Normal;
-			const float SafeAmplitude = FMath::Max(0.01f, FMath::Abs(AmplitudeScale));
 			const float Crest = VisualSurfaceVertices[Y * Side + X].Z / (48.0f * SafeAmplitude) * 0.75f
 				+ (1.0f - Normal.Z) * 2.2f;
 			const float Foam = FMath::SmoothStep(0.55f, 1.0f, Crest);
@@ -175,10 +190,7 @@ float AGCOceanManager::GetWaveHeightAt(const FVector2D& XY, float TimeSeconds, f
 	}
 	const float A = FMath::Clamp(FMath::IsFinite(InAmplitudeScale) ? InAmplitudeScale : 0.0f, 0.0f, 4.0f);
 	// Three travelling waves (amplitudes in cm); the visual grid samples this exact function.
-	const float P0 = 0.0016f * XY.X + 0.0011f * XY.Y + TimeSeconds * 0.9f;
-	const float P1 = -0.0023f * XY.X + 0.0028f * XY.Y + TimeSeconds * 1.35f;
-	const float P2 = 0.0061f * XY.X - 0.0052f * XY.Y + TimeSeconds * 2.2f;
-	return A * (26.0f * FMath::Sin(P0) + 15.0f * FMath::Sin(P1) + 7.0f * FMath::Sin(P2));
+	return EvaluateBaseWaveHeight(XY, TimeSeconds, A);
 }
 
 FVector AGCOceanManager::GetWaveNormalAt(const FVector2D& XY, float TimeSeconds, float InAmplitudeScale)
@@ -264,14 +276,11 @@ float AGCOceanManager::GetFoamFactorAt(const FVector2D& XY, float TimeSeconds, f
 	return FMath::SmoothStep(0.55f, 1.0f, Crest);
 }
 
-float AGCOceanManager::GetWakeHeightAt(const FVector2D& XY, float TimeSeconds) const
+float AGCOceanManager::GetWakeHeightAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const
 {
-	if (const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings())
+	if (!bWavesEnabled)
 	{
-		if (!Settings->bWavesEnabled)
-		{
-			return 0.0f;
-		}
+		return 0.0f;
 	}
 
 	float Height = 0.0f;
@@ -302,6 +311,42 @@ float AGCOceanManager::GetWakeHeightAt(const FVector2D& XY, float TimeSeconds) c
 		Height += Wake.StrengthCm * Envelope * Growth * FMath::Sin(Phase);
 	}
 	return Height;
+}
+
+FVector AGCOceanManager::GetWakeSurfaceVelocityAt(const FVector2D& XY, float TimeSeconds, bool bWavesEnabled) const
+{
+	if (!bWavesEnabled)
+	{
+		return FVector::ZeroVector;
+	}
+
+	FVector Velocity = FVector::ZeroVector;
+	for (const FGCWaterWakeImpulse& Wake : ActiveWakeImpulses)
+	{
+		const float Age = TimeSeconds - Wake.StartTime;
+		if (Age < 0.0f || Age > Wake.LifetimeSeconds)
+		{
+			continue;
+		}
+		const FVector2D Offset = XY - Wake.Center;
+		const float Back = -FVector2D::DotProduct(Offset, Wake.TravelDirection);
+		if (Back <= 0.0f || Back >= FMath::Min(Age * Wake.GrowthSpeedCmPerSecond, 50000.0f))
+		{
+			continue;
+		}
+		const FVector2D Right(-Wake.TravelDirection.Y, Wake.TravelDirection.X);
+		const float Side = FMath::Abs(FVector2D::DotProduct(Offset, Right));
+		const float ArmDistance = Side - Back * 0.58f;
+		const float ArmWidth = 90.0f + Back * 0.025f;
+		const float Envelope = FMath::Exp(-FMath::Abs(ArmDistance) / ArmWidth)
+			* FMath::Exp(-Back / 22000.0f) * FMath::Exp(-Age * 0.42f);
+		const float Growth = 1.0f - FMath::Exp(-Age * 5.0f);
+		const float Phase = Back * (2.0f * PI / Wake.WavelengthCm) - Age * 4.4f;
+		const float OrbitalSpeed = Wake.StrengthCm * Envelope * Growth * 4.4f * FMath::Cos(Phase);
+		Velocity.X -= Wake.TravelDirection.X * OrbitalSpeed;
+		Velocity.Y -= Wake.TravelDirection.Y * OrbitalSpeed;
+	}
+	return Velocity.GetClampedToMaxSize(400.0f);
 }
 
 void AGCOceanManager::EmitWake(const FVector& WorldLocation, const FVector& TravelDirection, float StrengthCm,
@@ -347,24 +392,27 @@ FGCOceanSample AGCOceanManager::SampleOceanStatic(const FVector2D& XY, float Tim
 FGCOceanSample AGCOceanManager::SampleOcean(const FVector& WorldLocation) const
 {
 	const float Time = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
+	const bool bWavesEnabled = !Settings || Settings->bWavesEnabled;
 	const FVector2D XY(WorldLocation.X, WorldLocation.Y);
 	FGCOceanSample Sample = SampleOceanStatic(XY, Time, AmplitudeScale);
-	const float WakeHeight = GetWakeHeightAt(XY, Time);
+	const float WakeHeight = GetWakeHeightAt(XY, Time, bWavesEnabled);
 	Sample.Height += GetActorLocation().Z + WakeHeight;
 
 	// Add the wake's finite-difference slope and vertical motion to the same sample used by buoyancy.
 	constexpr float SpatialStepCm = 50.0f;
 	constexpr float TimeStepSeconds = 0.02f;
-	const float WakeSlopeX = (GetWakeHeightAt(XY + FVector2D(SpatialStepCm, 0.0f), Time)
-		- GetWakeHeightAt(XY - FVector2D(SpatialStepCm, 0.0f), Time)) / (2.0f * SpatialStepCm);
-	const float WakeSlopeY = (GetWakeHeightAt(XY + FVector2D(0.0f, SpatialStepCm), Time)
-		- GetWakeHeightAt(XY - FVector2D(0.0f, SpatialStepCm), Time)) / (2.0f * SpatialStepCm);
-	const float WakeVerticalVelocity = (GetWakeHeightAt(XY, Time + TimeStepSeconds)
-		- GetWakeHeightAt(XY, Time - TimeStepSeconds)) / (2.0f * TimeStepSeconds);
+	const float WakeSlopeX = (GetWakeHeightAt(XY + FVector2D(SpatialStepCm, 0.0f), Time, bWavesEnabled)
+		- GetWakeHeightAt(XY - FVector2D(SpatialStepCm, 0.0f), Time, bWavesEnabled)) / (2.0f * SpatialStepCm);
+	const float WakeSlopeY = (GetWakeHeightAt(XY + FVector2D(0.0f, SpatialStepCm), Time, bWavesEnabled)
+		- GetWakeHeightAt(XY - FVector2D(0.0f, SpatialStepCm), Time, bWavesEnabled)) / (2.0f * SpatialStepCm);
+	const float WakeVerticalVelocity = (GetWakeHeightAt(XY, Time + TimeStepSeconds, bWavesEnabled)
+		- GetWakeHeightAt(XY, Time - TimeStepSeconds, bWavesEnabled)) / (2.0f * TimeStepSeconds);
 	const float BaseSlopeX = -Sample.Normal.X / FMath::Max(0.001f, Sample.Normal.Z);
 	const float BaseSlopeY = -Sample.Normal.Y / FMath::Max(0.001f, Sample.Normal.Z);
 	Sample.Normal = FVector(-(BaseSlopeX + WakeSlopeX), -(BaseSlopeY + WakeSlopeY), 1.0f).GetSafeNormal();
 	Sample.VerticalVelocity += WakeVerticalVelocity;
+	Sample.SurfaceVelocity += GetWakeSurfaceVelocityAt(XY, Time, bWavesEnabled);
 	const float WakeFoam = FMath::Clamp(FMath::Abs(WakeHeight) / 16.0f
 		+ (FMath::Abs(WakeSlopeX) + FMath::Abs(WakeSlopeY)) * 0.3f, 0.0f, 1.0f);
 	Sample.FoamFactor = FMath::Max(Sample.FoamFactor, WakeFoam);

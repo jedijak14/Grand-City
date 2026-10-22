@@ -21,8 +21,9 @@ waves synchronized.
 
 `EmitWake` adds bounded, short-lived wake packets to the manager. Each packet produces a pair
 of diverging wave arms behind its source with spreading length, wavelength, amplitude, and decay.
-The same wake height is sampled by gameplay and rendered by `WaveSurface`; sampled wake slope
-and vertical speed contribute to buoyancy, while the vertex foam mask brightens the crest.
+The same wake height is sampled by gameplay and rendered by `WaveSurface`; sampled wake slope,
+vertical speed, and a bounded horizontal orbital-velocity estimate contribute to buoyancy, while
+the vertex foam mask brightens the crest.
 Boats emit packets from the stern at speed-dependent strength (more when planing). The flyable
 plane emits weaker packets only during a fast, low pass over the configured ocean surface.
 
