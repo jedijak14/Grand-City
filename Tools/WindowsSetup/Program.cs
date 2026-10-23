@@ -37,7 +37,7 @@ internal sealed class SetupForm : Form
         var title = new Label { Text = "GRIDLOCK", Font = new Font("Segoe UI", 25F, FontStyle.Bold), AutoSize = true, Location = new Point(28, 22), ForeColor = Color.FromArgb(87, 205, 221) };
         var subtitle = new Label { Text = "Unreal Engine source workspace setup", AutoSize = true, Location = new Point(32, 70), ForeColor = Color.Gainsboro };
         engineLabel.SetBounds(32, 116, 680, 42);
-        engineLabel.Text = "Checking for Unreal Engine 5.4…";
+        engineLabel.Text = "Checking for Unreal Engine 5.8…";
         var folderLabel = new Label { Text = "New workspace folder", AutoSize = true, Location = new Point(32, 180) };
         folderBox.SetBounds(32, 208, 560, 31);
         folderBox.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Unreal Projects", "Gridlock");
@@ -50,7 +50,7 @@ internal sealed class SetupForm : Form
         launchButton.Bounds = new Rectangle(238, 270, 190, 42);
         launchButton.Enabled = false;
         launchButton.Click += (_, _) => LaunchEditor();
-        var locate = new Button { Text = "Locate UE 5.4…", Bounds = new Rectangle(448, 270, 190, 42) };
+        var locate = new Button { Text = "Locate UE 5.8…", Bounds = new Rectangle(448, 270, 190, 42) };
         locate.Click += (_, _) => LocateEditor();
         Controls.AddRange([title, subtitle, engineLabel, folderLabel, folderBox, browse, installButton, launchButton, locate]);
         DetectEngine();
@@ -67,29 +67,29 @@ internal sealed class SetupForm : Form
     {
         detectedEditor = EngineLocator.FindEditor();
         engineLabel.Text = detectedEditor is null
-            ? "Unreal Engine 5.4 not detected. Install UE 5.4 or locate UnrealEditor.exe."
-            : $"Detected Unreal Engine 5.4: {detectedEditor}";
+            ? "Unreal Engine 5.8 not detected. Install UE 5.8 or locate UnrealEditor.exe."
+            : $"Detected Unreal Engine 5.8: {detectedEditor}";
         installButton.Enabled = detectedEditor is not null;
     }
 
     private void LocateEditor()
     {
-        using var dialog = new OpenFileDialog { Title = "Select the Unreal Engine 5.4 editor", Filter = "Unreal Editor|UnrealEditor.exe|Executable|*.exe" };
+        using var dialog = new OpenFileDialog { Title = "Select the Unreal Engine 5.8 editor", Filter = "Unreal Editor|UnrealEditor.exe|Executable|*.exe" };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
-        if (!EngineLocator.IsUnreal54Editor(dialog.FileName))
+        if (!EngineLocator.IsUnreal58Editor(dialog.FileName))
         {
-            MessageBox.Show(this, "The selected editor does not identify itself as Unreal Engine 5.4.", "Unsupported engine version", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, "The selected editor does not identify itself as Unreal Engine 5.8.", "Unsupported engine version", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         detectedEditor = dialog.FileName;
-        engineLabel.Text = $"Selected Unreal Engine 5.4: {detectedEditor}";
+        engineLabel.Text = $"Selected Unreal Engine 5.8: {detectedEditor}";
         installButton.Enabled = true;
         launchButton.Enabled = installedProject is not null;
     }
 
     private void FindExistingWorkspace()
     {
-        var project = Path.Combine(folderBox.Text, "Gridlock.uproject");
+        var project = Path.Combine(folderBox.Text, "GrandCity.uproject");
         if (File.Exists(project))
         {
             installedProject = project;
@@ -125,18 +125,17 @@ internal sealed class SetupForm : Form
                     Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                     entry.ExtractToFile(destination, overwrite: true);
                 }
-                var originalProject = Path.Combine(target, "GrandCity.uproject");
-                var renamedProject = Path.Combine(target, "Gridlock.uproject");
-                if (!File.Exists(originalProject)) throw new FileNotFoundException("The workspace archive has no Unreal project descriptor.");
-                File.Move(originalProject, renamedProject, overwrite: true);
+                var projectDescriptor = Path.Combine(target, "GrandCity.uproject");
+                if (!File.Exists(projectDescriptor)) throw new FileNotFoundException("The workspace archive has no Unreal project descriptor.");
                 var readme = Path.Combine(target, "README.md");
                 File.WriteAllText(Path.Combine(target, "GRIDLOCK_WORKSPACE.txt"),
                     "Gridlock Unreal source workspace\r\n\r\n" +
-                    "Open Gridlock.uproject with Unreal Engine 5.4. The C++ project must be compiled from the editor or Visual Studio.\r\n" +
+                    "Open GrandCity.uproject with Unreal Engine 5.8. The C++ project must be compiled from the editor or Visual Studio.\r\n" +
+                    "On first open, Unreal may ask to build the missing GrandCity modules; confirm the rebuild if your C++ toolchain is installed.\r\n" +
                     "This is source code, not a prebuilt standalone game.\r\n\r\n" +
                     (File.Exists(readme) ? "See README.md and Docs for project notes.\r\n" : ""));
             });
-            installedProject = Path.Combine(target, "Gridlock.uproject");
+            installedProject = Path.Combine(target, "GrandCity.uproject");
             launchButton.Enabled = detectedEditor is not null;
             MessageBox.Show(this, "Gridlock source files were deployed to the new Unreal workspace. This is a source project, not a packaged game executable.", "Workspace ready", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -166,7 +165,7 @@ internal static class EngineLocator
                 try
                 {
                     using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-                    using var key = baseKey.OpenSubKey(@"SOFTWARE\EpicGames\Unreal Engine\5.4");
+                    using var key = baseKey.OpenSubKey(@"SOFTWARE\EpicGames\Unreal Engine\5.8");
                     AddEditorPath(candidates, key?.GetValue("InstalledDirectory") as string);
                 }
                 catch { }
@@ -175,11 +174,11 @@ internal static class EngineLocator
 
         var roots = new List<string>();
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        roots.Add(Path.Combine(programFiles, "Epic Games", "UE_5.4"));
-        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Epic Games", "UE_5.4"));
-        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Epic Games", "UE_5.4"));
+        roots.Add(Path.Combine(programFiles, "Epic Games", "UE_5.8"));
+        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Epic Games", "UE_5.8"));
+        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Epic Games", "UE_5.8"));
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-            roots.Add(Path.Combine(drive.RootDirectory.FullName, "Epic Games", "UE_5.4"));
+            roots.Add(Path.Combine(drive.RootDirectory.FullName, "Epic Games", "UE_5.8"));
         foreach (var root in roots) AddEditorPath(candidates, root);
 
         var launcherDb = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Epic", "UnrealEngineLauncher", "LauncherInstalled.dat");
@@ -188,14 +187,14 @@ internal static class EngineLocator
             using var json = JsonDocument.Parse(File.ReadAllText(launcherDb));
             if (json.RootElement.TryGetProperty("InstallationList", out var list))
                 foreach (var item in list.EnumerateArray())
-                    if (item.TryGetProperty("AppName", out var name) && name.GetString()?.Equals("UE_5.4", StringComparison.OrdinalIgnoreCase) == true && item.TryGetProperty("InstallLocation", out var path))
+                    if (item.TryGetProperty("AppName", out var name) && name.GetString()?.Equals("UE_5.8", StringComparison.OrdinalIgnoreCase) == true && item.TryGetProperty("InstallLocation", out var path))
                         AddEditorPath(candidates, path.GetString());
         }
         catch { }
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    public static bool IsUnreal54Editor(string editorPath)
+    public static bool IsUnreal58Editor(string editorPath)
     {
         if (!File.Exists(editorPath) || !Path.GetFileName(editorPath).Equals("UnrealEditor.exe", StringComparison.OrdinalIgnoreCase)) return false;
         var engineRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(editorPath)!, "..", "..", ".."));
@@ -203,7 +202,7 @@ internal static class EngineLocator
         {
             using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(engineRoot, "Engine", "Build", "Build.version")));
             var root = json.RootElement;
-            return root.GetProperty("MajorVersion").GetInt32() == 5 && root.GetProperty("MinorVersion").GetInt32() == 4;
+            return root.GetProperty("MajorVersion").GetInt32() == 5 && root.GetProperty("MinorVersion").GetInt32() == 8;
         }
         catch { return false; }
     }
@@ -213,6 +212,6 @@ internal static class EngineLocator
         if (string.IsNullOrWhiteSpace(rootOrExecutable)) return;
         var path = rootOrExecutable.Trim().Trim('"');
         if (Directory.Exists(path)) path = Path.Combine(path, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
-        if (IsUnreal54Editor(path)) candidates.Add(path);
+        if (IsUnreal58Editor(path)) candidates.Add(path);
     }
 }

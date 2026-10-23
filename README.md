@@ -1,7 +1,7 @@
 # Gridlock — UE5 Open-World City Game Prototype
 (M1: car physics + core sandbox · M2: boat/water sim, plane upgrades, airport computers, passenger flights & voice lines)
 
-A complete C++ gameplay foundation for an open-world sandbox game in **Unreal Engine 5.4**
+A complete C++ gameplay foundation for an open-world sandbox game in **Unreal Engine 5.8**
 (should also build on 5.3/5.5 with minor tweaks): custom raycast **car physics** with
 drifting and crash deformation, animated NPCs, police & traffic AI, shooting, a flyable
 plane, buoyancy boats, parachuting, day/night with real constellations, robbable shops,
@@ -10,15 +10,15 @@ free high-poly models you drop in.
 
 > ⚠️ **Build status:** the source tree is now arranged as an Unreal Engine C++ project and
 > the missing native UI classes have been added, but this code has not yet been compiled with
-> Unreal Engine 5.4 and Visual Studio 2022. No compile, cook, or gameplay result is claimed.
+> Unreal Engine 5.8 and Visual Studio 2022. No compile, cook, or gameplay result is claimed.
 > `.gitattributes` marks model and Unreal binary assets for Git LFS; the existing model blobs
 > still need LFS migration before a release-quality source push.
 
 ## 1. Build it
 
-For Windows users, the GitHub Releases page provides `Gridlock-Workspace-Setup.exe`. It detects Unreal Engine 5.4, extracts the complete source into a new `Gridlock` workspace, and can launch the editor. This is an Unreal source-project setup utility, **not a standalone game installer**. The first release workflow build must complete before the executable appears as a release asset.
+For Windows users, the GitHub Releases page provides `Gridlock-Workspace-Setup.exe`. It detects Unreal Engine 5.8, extracts the complete source into a new `Gridlock` workspace, and can launch the editor. This is an Unreal source-project setup utility, **not a standalone game installer**. The latest release provides the Windows setup executable and checksum file.
 
-Requirements: Windows 10/11, **Unreal Engine 5.4**, **Visual Studio 2022** with
+Requirements: Windows 10/11, **Unreal Engine 5.8**, **Visual Studio 2022** with
 “Game development with C++” + “Desktop development with C++” workloads.
 
 1. Right-click `GrandCity.uproject` → **Generate Visual Studio project files**.
