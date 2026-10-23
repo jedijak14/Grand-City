@@ -1,0 +1,49 @@
+name: Build Gridlock Windows workspace release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-workspace-setup:
+    runs-on: windows-latest
+    steps:
+      - name: Check out released source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build source workspace archive
+        shell: pwsh
+        run: |
+          git archive --format=zip --output Gridlock-Workspace.zip HEAD
+
+      - name: Publish self-contained Windows setup executable
+        shell: pwsh
+        run: |
+          dotnet publish Tools/WindowsSetup/GridlockSetup.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PayloadPath="$PWD/Gridlock-Workspace.zip" `
+            --output "$PWD/release-out"
+          Copy-Item "$PWD/release-out/GridlockSetup.exe" "$PWD/Gridlock-Workspace-Setup.exe"
+          Get-FileHash Gridlock-Workspace-Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  Gridlock-Workspace-Setup.exe" } | Set-Content SHA256SUMS.txt
+          Get-FileHash Gridlock-Workspace.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  Gridlock-Workspace.zip" } | Add-Content SHA256SUMS.txt
+
+      - name: Attach setup, source workspace, and checksums to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release upload "${{ github.event.release.tag_name }}" Gridlock-Workspace-Setup.exe Gridlock-Workspace.zip SHA256SUMS.txt --clobber

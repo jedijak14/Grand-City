@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>GridlockSetup</AssemblyName>
+    <RootNamespace>GridlockSetup</RootNamespace>
+    <Version>2.1.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(PayloadPath)')">
+    <EmbeddedResource Include="$(PayloadPath)" LogicalName="GridlockWorkspace.zip" />
+  </ItemGroup>
+</Project>

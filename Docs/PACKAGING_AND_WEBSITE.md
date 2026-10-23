@@ -1,41 +1,27 @@
-# Packaging (.exe), updater & website — status and plan
+# Windows workspace setup and packaging status
 
-These are later milestone work; gameplay and a verified UE5 compile come first.
+## Gridlock workspace setup executable
 
-## Windows installer
+Each published `v*` release is configured to attach three assets from the Windows release workflow:
 
-The GitHub release lists `GrandCity-Setup.exe` (about 30 MB). GitHub reports its SHA-256 as
-`b99ae9f13e7fb94a950ca0947d707f1ac882d90096a85dc6f47591900d6b1698`, matching the earlier
-installer fingerprint documented in the handoff. The installer is a release asset; its NSIS
-source (`Tools/Installer/GrandCityInstaller.nsi`) is **not present in the current source tree**,
-so its behavior and payload have not been independently verified from source here.
+- `Gridlock-Workspace-Setup.exe` — self-contained Windows x64 setup UI.
+- `Gridlock-Workspace.zip` — complete tracked Unreal project/source workspace.
+- `SHA256SUMS.txt` — SHA-256 checksums for both files.
 
-The handoff specifies that this is a **UE5 project installer, not a standalone game**: UE5 and
-Visual Studio 2022 are required to build/run the project. Treat the installer as unsigned unless
-verified otherwise. Verify the release hash before running it; Windows SmartScreen may warn.
+The setup application looks for Unreal Engine 5.4 in Epic's registry/launcher metadata and common install roots. It can place the source project into a new user-selected folder (default: `Documents/Unreal Projects/Gridlock`) and launch the detected editor. It extracts the project files, creates `Gridlock.uproject` from the repository descriptor, and leaves the original source module identifiers intact. The installer does not require administrator privileges.
 
-A player-facing packaged-game installer comes only after a verified editor build, cook, and
-Shipping package. No standalone game build is currently claimed.
+The generated workspace is an **Unreal source project, not a prebuilt game**. Users need Unreal Engine 5.4 and a compatible Visual Studio C++ toolchain to compile and run it. The setup app does not install Unreal Engine, Visual Studio, or third-party dependencies. The project currently has not been verified by an Unreal build or runtime test; no standalone game `.exe` is included or claimed.
 
-## Updater (planned; not implemented)
+The Windows `.exe` is built by `.github/workflows/release-gridlock.yml` when a release is published. This repository environment does not have Windows or the .NET SDK, so the setup application cannot be built or executed locally here. Confirm the release workflow succeeds and its three assets appear before announcing an executable download. The setup executable is not code-signed; Windows SmartScreen may show a warning. Verify hashes against `SHA256SUMS.txt` before running downloaded assets.
 
-- No updater executable or `updater-manifest.example.json` is in the current source tree.
-- A future updater must verify every SHA-256 before replacing files, verify a signature where
-  available, preserve a rollback copy, and show the changelog. Never run an update that fails
-  verification.
+## Packaged game (not yet available)
 
-## Website (handoff information; not verified in this repository)
+A player-facing standalone game installer requires a successful Unreal compile, cook, and Windows Shipping package. Those steps have not been performed. The setup executable above only deploys the source into an Unreal workspace.
 
-The handoff reports a live website at **https://gta-city-alpha.vercel.app**. Website source is not
-part of this game repository, and this workspace has not re-verified the current deployment.
-The site should remain informational/download-focused: a browser cannot run this UE5 build, and
-hosting multiplayer servers requires separate server infrastructure.
+## Updater (not implemented)
 
-The handoff's suggested minimum PC spec is Windows 10/11 64-bit, 6-core CPU, 16 GB RAM, a DX12
-GPU with 6 GB+ VRAM, and 20 GB SSD. Revisit this after performance profiling; it is not a
-measured guarantee.
+There is no updater. Any future updater must verify every SHA-256 before replacing files, verify a signature where available, preserve a rollback copy, and show the changelog. Never run an update that fails verification.
 
-## Servers
+## Website and servers
 
-Current architecture is single-player. Dedicated-server multiplayer is a later roadmap phase;
-"servers constantly running" requires separately provisioned hosting.
+The prior handoff reports a live website at **https://gta-city-alpha.vercel.app**. Website source is not part of this repository, and this workspace has not re-verified the current deployment. A browser cannot run this Unreal source project; multiplayer hosting also requires separate server infrastructure.
