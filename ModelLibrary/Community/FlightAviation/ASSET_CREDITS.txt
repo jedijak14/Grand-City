@@ -1,0 +1,8 @@
+# Helicopter model attribution
+
+Model: `helicopter.glb`, the AW101 helicopter, by Gigantic Burger.
+Source page: https://skfb.ly/6XBwS
+GitHub distribution mirror: https://github.com/srcejon/sdrangel-3d-models
+Pinned source commit: `59d1ee24ebc2c24343afb54b26928f965a625140`
+License: Creative Commons Attribution 4.0 International (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Changes: unmodified GLB redistribution; Gridlock assigns it to the in-game helicopter fuselage mesh. Attribution is required for shipping; see `UPSTREAM_LICENSE.txt` for the source repository's per-model records.

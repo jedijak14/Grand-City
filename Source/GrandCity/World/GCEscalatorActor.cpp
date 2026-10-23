@@ -28,6 +28,11 @@ AGCEscalatorActor::AGCEscalatorActor()
 	Treads->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	Treads->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
+	TreadDetailVisuals = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("TreadDetailVisuals"));
+	TreadDetailVisuals->SetupAttachment(SceneRoot);
+	TreadDetailVisuals->SetMobility(EComponentMobility::Movable);
+	TreadDetailVisuals->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	RideTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("RideTrigger"));
 	RideTrigger->SetupAttachment(SceneRoot);
 	RideTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -68,7 +73,7 @@ void AGCEscalatorActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AGCEscalatorActor::RebuildPathAndTreads()
 {
-	if (!TreadPath || !Treads || !RideTrigger)
+	if (!TreadPath || !Treads || !TreadDetailVisuals || !RideTrigger)
 	{
 		return;
 	}
@@ -103,7 +108,13 @@ void AGCEscalatorActor::RebuildPathAndTreads()
 	RideTrigger->SetRelativeLocation(FVector(Run * 0.5f, 0.0f, Rise * 0.5f + 100.0f));
 
 	Treads->ClearInstances();
+	TreadDetailVisuals->ClearInstances();
 	Treads->SetStaticMesh(TreadMesh);
+	TreadDetailVisuals->SetStaticMesh(TreadDetailMesh);
+	TreadDetailVisuals->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// Keep robust engine-cube collision while rendering the imported ribbed tread when available.
+	Treads->SetVisibility(TreadDetailMesh == nullptr, true);
+	TreadDetailVisuals->SetVisibility(TreadDetailMesh != nullptr, true);
 	Treads->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Treads->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 	Treads->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
@@ -125,6 +136,10 @@ void AGCEscalatorActor::RebuildPathAndTreads()
 		TreadTransform.SetRotation(FQuat::Identity); // step surfaces stay level while their centres follow the loop
 		TreadTransform.SetScale3D(Scale);
 		Treads->AddInstance(TreadTransform, false);
+		if (TreadDetailMesh)
+		{
+			TreadDetailVisuals->AddInstance(TreadTransform, false);
+		}
 	}
 	UpdateTreadTransforms();
 }
@@ -155,6 +170,10 @@ void AGCEscalatorActor::UpdateTreadTransforms()
 		TreadTransform.SetRotation(FQuat::Identity);
 		TreadTransform.SetScale3D(Scale);
 		Treads->UpdateInstanceTransform(Index, TreadTransform, false, Index == Count - 1, true);
+		if (TreadDetailMesh && TreadDetailVisuals && TreadDetailVisuals->GetInstanceCount() == Count)
+		{
+			TreadDetailVisuals->UpdateInstanceTransform(Index, TreadTransform, false, Index == Count - 1, true);
+		}
 	}
 }
 

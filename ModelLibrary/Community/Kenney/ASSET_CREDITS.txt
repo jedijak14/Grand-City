@@ -1,0 +1,16 @@
+# Kenney community models used by Gridlock
+
+Creator: Kenney (https://kenney.nl/)
+License: CC0 1.0 Universal (public domain dedication); the source repository's LICENSE.txt and README are included beside these models.
+GitHub source mirror: https://github.com/shorepine/kenney
+Pinned source commit: 3694c6879e487c108f55677be7dd2ca75b07cc3b
+Source notes: the mirror README identifies the art as Kenney's and says the complete Kenney game-asset library is CC0. The mirror is not the creator. The official Kenney pack pages also identify the corresponding city packs as CC0:
+- https://kenney.nl/assets/city-kit-commercial
+- https://kenney.nl/assets/city-kit-suburban
+- https://kenney.nl/assets/city-kit-industrial
+- https://kenney.nl/assets/city-kit-roads
+
+Included subsets: commercial buildings/skyscrapers, suburban building types, industrial buildings/tank/chimney, and road, sidewalk, streetlight and intersection models. The pack source folders and shared `Textures/colormap.png` files are preserved. Gridlock's selected GLBs are unmodified source copies. No airport-terminal model was found in this collection; Gridlock's separate `gridlock_airport_terminal.glb` remains original procedural geometry.
+- Kenney Car Kit (CC0): https://kenney.nl/assets/car-kit — the unbranded van and sedan GLBs provide the starter route-shuttle and personal-car visuals; taxi, SUV, and ambulance GLBs are also included for future map use.
+- Kenney Nature Kit (CC0): https://kenney.nl/assets/nature-kit — the sign.glb community model is used for interactive property, shop, and transit-stop sign components.
+- Kenney Watercraft Kit (CC0): https://kenney.nl/assets/watercraft-kit — starter-map motorboat uses `boat-speed-a.glb`.

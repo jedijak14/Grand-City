@@ -10,16 +10,21 @@
 - `AGCOceanManager` provides analytic wave height/normal/velocity queries and an optional
   CPU-deformed procedural surface. Boat wake packets and fast, low plane passes contribute a
   bounded stylized wake height, slope, and velocity to physics samples and the harbor mesh.
-- `AGCEscalatorActor` circulates instanced treads and gives grounded characters upward movement in
-  its ride zone. The starter-map script places two blockout escalators beside airport test markers.
+- `AGCEscalatorActor` circulates instanced GLB treads and gives grounded characters upward movement
+  in its ride zone. The starter map adds detailed static glass side guards/steel handrails; a modeled
+  guide frame with structural rails, cross-bracing and an access ladder surrounds the elevator.
 - `AGCElevatorActor` now runs a one-car lobby-to-roof cycle with caller-floor pickup, a boarding dwell,
   animated split doors, a doorway obstruction sensor, collision walls, a moving floor, and two linked
   interaction landings in the starter map.
-- The harbor look-development builder adds a coastal boulevard and procedural facades/props,
-  player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile. Its
-  starter-city path now also generates two walkable airport terminal greyboxes (check-in, security,
-  gate lounge, amenities and reciprocal Coastline ticket kiosks/airliner pawns); this editor script
-  has only passed Python syntax checks, not execution in Unreal.
+- The starter-city builder currently references original Coastline airport terminal GLBs,
+  reciprocal ticketed airliner pawns, a procedural animated ocean, Kenney CC0 buildings/roads/props,
+  and custom transit GLBs. One original Pacific Residences high-rise (195,248 triangles with a
+  generated PBR atlas) now replaces a simple community skyscraper as the downtown landmark; the
+  builder adds a hidden simple collision proxy. This is a first hero-asset replacement, not a
+  completed city art pass: 103 of 106 GLBs still fail the report-only density screening floors.
+  Low-density assets are not accepted as final production art. `Docs/ModelGallery/index.html` links
+  all 106 individual offline CPU previews; these are not UE screenshots. Unreal 5.8 import, art
+  review, and runtime verification remain outstanding.
 - `Tools/CreateGrandCityArdenGT.py` generates a 176k-triangle original static vehicle prototype.
   The available GLB character/vehicle models are samples; production-quality custom, rigged car
   and character assets are still outstanding. Six Quaternius CC0 rigged character/outfit GLBs
@@ -39,9 +44,12 @@
   have not been built or run in Unreal.
 - Water/wake behavior is a stylized empirical model, not a full fluid solver. The CPU surface and
   wake packet count require profiling at the actual target resolution and actor density.
-- The starter map remains greybox. Bathrooms, authored terminal interiors, production escalator
-  rails/treads, original high-quality vehicle/character models, rigged animation sets, and final
-  lighting/material review are incomplete.
+- City buildings, airport shells, road slabs, POI buildings, and transit guide/rail/tread geometry
+  no longer use visible cube stand-ins in the starter-map builder. The editor has not been run here,
+  so GLB import, Kenney texture resolution, actual mesh bounds/orientation, collision, ocean/terrain
+  appearance and overlap are all unverified. Minor interactive props and native vehicle actors still
+  use simple built-in meshes; this pass does not complete all production vehicle art, interiors,
+  animations, Niagara effects, or final art direction.
 - Git LFS is not installed in this workspace. Do not add large model binaries as ordinary Git blobs;
   install and use LFS before publishing generated/imported model assets.
 - The loading image import is automated, but a packaged build still needs an Unreal cook/runtime
