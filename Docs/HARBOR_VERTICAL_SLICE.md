@@ -13,7 +13,7 @@ profile for high-end PC presentation.
 
 ## Run it in Unreal Editor
 
-1. Build `GrandCityEditor` for UE 5.4 / Win64 and open `GrandCity.uproject`.
+1. Build `GrandCityEditor` for UE 5.8 / Win64 and open `GrandCity.uproject`.
 2. Run `Tools/ImportModels_Editor.py` first. If a generated Arden GT is available, import it as
    well; the map builder tries it before the sample car meshes for the player vehicle.
 3. Use **Tools → Execute Python Script** to run `Tools/BuildHarborVerticalSlice_Editor.py`.
@@ -31,7 +31,7 @@ GPU-driven or UE Water implementation if the target-world footprint or frame bud
 ## Verification status
 
 The script is syntax-checked only. Its material-graph creation, engine/editor Python API calls,
-level appearance, collision, performance, and gameplay must be verified in UE 5.4. The workspace
+level appearance, collision, performance, and gameplay must be verified in UE 5.8. The workspace
 has no Unreal Editor, no cooked map, and no `Content/` assets, so none of those are claimed as
 complete. This is a concrete visual-production foundation, not a promise that an AA-scale game
 has already been achieved.

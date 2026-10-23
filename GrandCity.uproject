@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.4",
+	"EngineAssociation": "5.8",
 	"Category": "Games",
 	"Description": "Gridlock — open-world city sandbox. C++ gameplay systems for vehicles, transit, pedestrians, and city exploration.",
 	"Modules": [

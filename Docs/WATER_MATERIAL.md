@@ -29,5 +29,5 @@ plane emits weaker packets only during a fast, low pass over the configured ocea
 
 These are stylized surface disturbances, not hydrodynamically exact boat wakes or aircraft
 pressure fields. The mesh must cover the effect and be enabled in the level for disturbances to
-be visible. Physics, performance, visual quality, and UE 5.4 API compatibility remain unverified
+be visible. Physics, performance, visual quality, and UE 5.8 API compatibility remain unverified
 until compiled and exercised in Unreal.

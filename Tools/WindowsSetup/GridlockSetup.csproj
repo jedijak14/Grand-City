@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>GridlockSetup</AssemblyName>
     <RootNamespace>GridlockSetup</RootNamespace>
-    <Version>2.1.0</Version>
+    <Version>2.1.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup Condition="Exists('$(PayloadPath)')">

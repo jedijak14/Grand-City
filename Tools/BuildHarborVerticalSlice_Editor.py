@@ -1,6 +1,6 @@
 """Build an art-directed coastal vertical-slice map using Unreal Editor's built-in meshes.
 
-Run after compiling GrandCity in UE 5.4: Tools > Execute Python Script. This creates
+Run after compiling GrandCity in UE 5.8: Tools > Execute Python Script. This creates
 /Game/Maps/L_HarborVerticalSlice plus reusable flat-color PBR materials in /Game/GrandCity.
 It is intentionally a playable look-development blockout, not a claim of final AA art.
 """
