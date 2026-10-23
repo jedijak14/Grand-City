@@ -18,6 +18,8 @@ class UAudioComponent;
 class USpotLightComponent;
 class UPointLightComponent;
 class UCameraShakeBase;
+class UNiagaraComponent;
+class UNiagaraSystem;
 class AGCCharacter;
 
 USTRUCT(BlueprintType)
@@ -37,6 +39,21 @@ struct FGCWheelSetup
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bSteering = false;
+};
+
+USTRUCT(BlueprintType)
+struct FGCVehicleTireCondition
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Tyres", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float Integrity = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Tyres")
+    bool bPunctured = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Tyres", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float GripScale = 1.0f;
 };
 
 UENUM(BlueprintType)
@@ -199,6 +216,74 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Tyres")
 	float HandbrakeRearGripMultiplier = 0.22f;
 
+    /** Per-wheel condition state. Index order matches the Wheels setup array. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Tyres")
+    TArray<FGCVehicleTireCondition> TireConditions;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Tyres", meta = (ClampMin = "0.0"))
+    float TireImpactDamageScale = 0.00008f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Tyres", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float PuncturedTireMinimumGrip = 0.22f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Powertrain", meta = (ClampMin = "40.0"))
+    float InitialEngineTemperatureC = 88.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Powertrain", meta = (ClampMin = "50.0"))
+    float EngineOverheatTemperatureC = 112.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Powertrain", meta = (ClampMin = "60.0"))
+    float EngineCriticalTemperatureC = 135.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Powertrain", meta = (ClampMin = "0.0"))
+    float RadiatorCoolingRate = 0.012f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Powertrain", meta = (ClampMin = "0.0"))
+    float EngineHeatPerThrottle = 3.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vehicle|Powertrain")
+    float EngineTemperatureC = 88.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Powertrain", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float RadiatorIntegrity = 1.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Powertrain")
+    bool bEngineStalled = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Powertrain", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float EngineMisfireSeverity = 0.0f;
+
+    /** Optional Niagara smoke system; assign an engine-bay plume in a vehicle Blueprint. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Damage|VFX")
+    TObjectPtr<UNiagaraSystem> EngineSmokeSystem = nullptr;
+
+    UFUNCTION(BlueprintCallable, Category = "Vehicle|Damage")
+    void DamageTire(int32 WheelIndex, float DamageAmount);
+
+    UFUNCTION(BlueprintCallable, Category = "Vehicle|Damage")
+    void RepairTires();
+
+    UFUNCTION(BlueprintCallable, Category = "Vehicle|Damage")
+    void DamageRadiator(float DamageAmount);
+
+    UFUNCTION(BlueprintCallable, Category = "Vehicle|Damage")
+    void RepairMechanicalSystems();
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Traffic")
+    bool BeginTrafficStop(AGCCharacter* Officer);
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Traffic")
+    bool RunBreathalyzer(AGCCharacter* Officer);
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Traffic")
+    bool RunDrugImpairmentTest(AGCCharacter* Officer);
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Traffic")
+    bool IssueTrafficCitation(AGCCharacter* Officer, EGCPoliceViolation Violation);
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Traffic")
+    void ReleaseTrafficStop(AGCCharacter* Officer);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Aero")
 	float DragCoeff = 0.55f;
 
@@ -223,6 +308,66 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Police")
 	bool bIsPoliceVehicle = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Ownership")
+    bool bIsPlayerOwned = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Ownership")
+    bool bWasStolen = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Ownership")
+    FString VehicleID;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Ownership")
+    FString DisplayName = TEXT("Personal vehicle");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Ownership")
+    FString LicensePlate;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bExpiredMeter = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bParkedOnSidewalk = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bBlockingFireHydrant = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bAgainstTraffic = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bCommittedIllegalTurn = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bTailLightsFunctional = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bSmokingExhaust = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bRecklessDriving = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bDriverImpaired = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bDriverDrugImpaired = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bDriverSlurredSpeech = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bDriverUnsteadyGait = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Traffic")
+    bool bDriverHasValidLicense = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Traffic")
+    bool bTrafficStopped = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Vehicle|Traffic")
+    float TrafficStopSpeedKmh = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Debug")
 	bool bDebugDrawWheels = false;
@@ -311,6 +456,10 @@ private:
 	bool bInputHandbrake = false;
 	float CurrentSteerAngleRad = 0.0f;
 	float ShiftTimer = 0.0f;
+    float EngineMisfireTimer = 0.0f;
+    float EngineSmokeUpdateTimer = 0.0f;
+    UPROPERTY(Transient)
+    TObjectPtr<UNiagaraComponent> EngineSmokeComponent = nullptr;
 	bool bSirenOn = false;
 	float SirenFlashTimer = 0.0f;
 	bool bSirenPhase = false;
@@ -325,6 +474,8 @@ private:
 	float DoorOpenAlpha = 0.0f; // 0 closed, 1 open
 
 	void UpdateVehiclePhysics(float DeltaSeconds);
+    void UpdateMechanicalSystems(float DeltaSeconds);
+    void UpdateEngineSmoke();
 	void ApplyWheelForces(float DeltaSeconds);
 	void UpdatePowertrain(float DeltaSeconds, float& OutTotalDriveForceN);
 	void UpdateWheelVisuals(float DeltaSeconds);

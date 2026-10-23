@@ -1,5 +1,7 @@
 #include "Vehicle/GCVehiclePawn.h"
 #include "Character/GCCharacter.h"
+#include "Core/GCCrimeSystemSubsystem.h"
+#include "Core/GCPlayerState.h"
 #include "Character/GCPedestrian.h"
 #include "Components/GCDeformationComponent.h"
 #include "Components/GCHealthComponent.h"
@@ -10,9 +12,13 @@
 #include "Components/SceneComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 #include "Camera/CameraComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
@@ -30,6 +36,7 @@ AGCVehiclePawn::AGCVehiclePawn()
 	RootComponent = CollisionBody;
 	CollisionBody->SetBoxExtent(FVector(220.0f, 95.0f, 45.0f));
 	CollisionBody->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+    CollisionBody->SetGenerateOverlapEvents(true);
 	CollisionBody->SetSimulatePhysics(true);
 	CollisionBody->SetEnableGravity(true);
 	CollisionBody->SetLinearDamping(0.05f);
@@ -148,8 +155,18 @@ AGCVehiclePawn::AGCVehiclePawn()
 void AGCVehiclePawn::BeginPlay()
 {
 	Super::BeginPlay();
+    if (VehicleID.IsEmpty())
+    {
+        VehicleID = FGuid::NewGuid().ToString(EGuidFormats::Digits).ToUpper();
+    }
+    if (LicensePlate.IsEmpty())
+    {
+        LicensePlate = FString::Printf(TEXT("GC-%04d"), FMath::RandRange(0, 9999));
+    }
 
 	WheelState.SetNum(Wheels.Num());
+    TireConditions.SetNum(Wheels.Num());
+    EngineTemperatureC = FMath::Max(20.0f, InitialEngineTemperatureC);
 	for (int32 i = 0; i < WheelState.Num(); ++i)
 	{
 		WheelState[i].bDrive = IsDriveWheel(i);
@@ -185,6 +202,7 @@ void AGCVehiclePawn::BeginPlay()
 void AGCVehiclePawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+    UpdateMechanicalSystems(DeltaSeconds);
 	UpdateVehiclePhysics(DeltaSeconds);
 	UpdateWheelVisuals(DeltaSeconds);
 	UpdateOccupancy(DeltaSeconds);
@@ -236,6 +254,12 @@ void AGCVehiclePawn::UpdatePowertrain(float DeltaSeconds, float& OutTotalDriveFo
 		CurrentRPM = FMath::FInterpTo(CurrentRPM, 0.0f, DeltaSeconds, 2.0f);
 		return;
 	}
+
+    if (bEngineStalled)
+    {
+        CurrentRPM = FMath::FInterpTo(CurrentRPM, 0.0f, DeltaSeconds, 2.0f);
+        return;
+    }
 
 	const float ForwardSpeed = GetForwardSpeedCms(); // cm/s
 	const float Throttle = FMath::Clamp(InputThrottle, -1.0f, 1.0f);
@@ -304,6 +328,7 @@ void AGCVehiclePawn::UpdatePowertrain(float DeltaSeconds, float& OutTotalDriveFo
 	{
 		TorqueFactor *= 0.3f;
 	}
+    TorqueFactor *= 1.0f - EngineMisfireSeverity * 0.55f;
 
 	const float Ratio = CurrentGear < 0 ? ReverseGearRatio
 		: (GearRatios.IsValidIndex(CurrentGear - 1) ? GearRatios[CurrentGear - 1] : 1.0f);
@@ -472,7 +497,8 @@ void AGCVehiclePawn::ApplyWheelForces(float DeltaSeconds)
 		WS.LateralSlipMps = LatVel;
 
 		const bool bRear = Setup.LocalOffset.X < 0.0f;
-		float MuLat = TireFrictionMu;
+        const float TireGrip = TireConditions.IsValidIndex(i) ? TireConditions[i].GripScale : 1.0f;
+		float MuLat = TireFrictionMu * TireGrip;
 		if (bInputHandbrake && bRear)
 		{
 			MuLat *= HandbrakeRearGripMultiplier;
@@ -484,7 +510,7 @@ void AGCVehiclePawn::ApplyWheelForces(float DeltaSeconds)
 		CollisionBody->AddForceAtLocation(WheelRight * LatForce * 100.0f, WS.ContactPoint);
 
 		// Friction circle: whatever grip the lateral force didn't use is available longitudinally.
-		const float MaxTotal = TireFrictionMu * WS.SuspensionForceN;
+		const float MaxTotal = TireFrictionMu * TireGrip * WS.SuspensionForceN;
 		const float AvailableLong = FMath::Sqrt(FMath::Max(0.0f, MaxTotal * MaxTotal - LatForce * LatForce));
 
 		float LongForce = 0.0f;
@@ -651,6 +677,23 @@ bool AGCVehiclePawn::BeginEnter(AGCCharacter* Character)
 	{
 		return false;
 	}
+    if (Character->IsPlayerControlled() && !bIsPlayerOwned)
+    {
+        bWasStolen = true;
+        bIsPlayerOwned = true;
+        if (AGCPlayerState* PlayerState = Character->GetPlayerState<AGCPlayerState>())
+        {
+            PlayerState->RegisterOwnedVehicle(this, true);
+        }
+        bool bWitnessed = false;
+        if (UGCCrimeSystemSubsystem* CrimeSystem = GetWorld()->GetSubsystem<UGCCrimeSystemSubsystem>())
+        {
+            bWitnessed = CrimeSystem->ReportCrime(Character, GetActorLocation(), EGCCrimeType::VehicleTheft, 900.0f);
+        }
+        Character->ShowSubtitle(bWitnessed
+            ? TEXT("Vehicle taken without permission. A witness reported the theft.")
+            : TEXT("Vehicle taken without permission. No witness saw the theft."), 4.0f);
+    }
 	DriverCharacter = Character;
 	VehicleState = EGCVehicleState::Entering;
 	OccupancyTimer = 0.0f;
@@ -754,12 +797,50 @@ void AGCVehiclePawn::OnBodyHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 	}
 
 	const float Severity = FMath::Clamp((ClosingSpeed - MinCrashSpeedForDent) / 1800.0f, 0.05f, 1.0f);
-	if (Deformation)
-	{
-		const float Radius = FMath::Lerp(55.0f, 170.0f, Severity);
-		const float Depth = FMath::Lerp(4.0f, 36.0f, Severity);
-		Deformation->ApplyDentWorld(Hit.ImpactPoint, -Hit.ImpactNormal, Radius, Depth);
-	}
+    const FString CrashVehicleDescription = FString::Printf(TEXT("%s (plate %s)"), *DisplayName, *LicensePlate);
+    for (TActorIterator<AGCPedestrian> PedIt(GetWorld()); PedIt; ++PedIt)
+    {
+        AGCPedestrian* Witness = *PedIt;
+        if (!IsValid(Witness) || Witness->bDead) continue;
+        const bool bVictim = Witness == OtherActor;
+        if (bVictim || Witness->CanWitnessCrimeAt(Hit.ImpactPoint))
+        {
+            Witness->RecordVehicleCrashWitness(Hit.ImpactPoint, bVictim, CrashVehicleDescription);
+        }
+    }
+
+    // Wheel-area impacts degrade the corresponding tyre independently of chassis health.
+    // Tire integrity recovers only through an explicit repair interaction.
+    int32 NearestWheel = INDEX_NONE;
+    float NearestWheelDistanceSq = TNumericLimits<float>::Max();
+    const FTransform BodyTransform = CollisionBody->GetComponentTransform();
+    for (int32 WheelIndex = 0; WheelIndex < Wheels.Num(); ++WheelIndex)
+    {
+        const FVector WheelCenter = BodyTransform.TransformPosition(Wheels[WheelIndex].LocalOffset);
+        const float DistanceSq = FVector::DistSquared2D(WheelCenter, Hit.ImpactPoint)
+            + FMath::Square((WheelCenter.Z - Hit.ImpactPoint.Z) * 0.6f);
+        if (DistanceSq < NearestWheelDistanceSq)
+        {
+            NearestWheelDistanceSq = DistanceSq;
+            NearestWheel = WheelIndex;
+        }
+    }
+    if (NearestWheel != INDEX_NONE)
+    {
+        const float WheelImpactRadius = FMath::Max(70.0f, Wheels[NearestWheel].Radius * 2.0f);
+        if (NearestWheelDistanceSq <= FMath::Square(WheelImpactRadius))
+        {
+            DamageTire(NearestWheel, FMath::Clamp(ClosingSpeed * TireImpactDamageScale, 0.0f, 0.85f));
+        }
+    }
+
+    const FVector LocalImpact = BodyTransform.InverseTransformPosition(Hit.ImpactPoint);
+    if (LocalImpact.X > 80.0f && Severity > 0.15f)
+    {
+        DamageRadiator(Severity * 0.28f);
+    }
+
+    // UGCDeformationComponent owns hit/overlap deformation so each physical event is applied once.
 
 	TakeDamage(Severity * 120.0f, FDamageEvent(), nullptr, OtherActor);
 
@@ -785,6 +866,267 @@ void AGCVehiclePawn::OnBodyHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 			PC->ClientStartCameraShake(CrashShakeClass, 0.4f + Severity);
 		}
 	}
+}
+
+void AGCVehiclePawn::UpdateMechanicalSystems(float DeltaSeconds)
+{
+    if (DeltaSeconds <= 0.0f || bWrecked)
+    {
+        return;
+    }
+
+    constexpr float AmbientTemperatureC = 22.0f;
+    const float ThrottleLoad = bEngineStalled ? 0.0f : FMath::Abs(InputThrottle);
+    const float SpeedCoolingScale = 1.0f + FMath::Clamp(GetSpeedKmh() / 250.0f, 0.0f, 0.5f);
+    const float HeatAddedPerSecond = 0.8f + ThrottleLoad * FMath::Max(0.0f, EngineHeatPerThrottle);
+    const float CoolingPerSecond = FMath::Max(0.0f, EngineTemperatureC - AmbientTemperatureC)
+        * FMath::Max(0.0f, RadiatorCoolingRate) * FMath::Clamp(RadiatorIntegrity, 0.05f, 1.0f) * SpeedCoolingScale;
+    EngineTemperatureC = FMath::Clamp(EngineTemperatureC + (HeatAddedPerSecond - CoolingPerSecond) * DeltaSeconds,
+        AmbientTemperatureC, EngineCriticalTemperatureC + 20.0f);
+
+    const float OverheatRange = FMath::Max(1.0f, EngineCriticalTemperatureC - EngineOverheatTemperatureC);
+    EngineMisfireSeverity = FMath::Clamp((EngineTemperatureC - EngineOverheatTemperatureC) / OverheatRange, 0.0f, 1.0f);
+    if (!bEngineStalled && EngineTemperatureC >= EngineCriticalTemperatureC)
+    {
+        bEngineStalled = true;
+        InputThrottle = 0.0f;
+    }
+    else if (bEngineStalled && EngineTemperatureC <= EngineOverheatTemperatureC - 12.0f)
+    {
+        // The stall clears after cooldown; restarting is possible by applying throttle again.
+        bEngineStalled = false;
+    }
+
+    EngineSmokeUpdateTimer -= DeltaSeconds;
+    if (EngineSmokeUpdateTimer <= 0.0f)
+    {
+        EngineSmokeUpdateTimer = 0.5f;
+        UpdateEngineSmoke();
+    }
+}
+
+void AGCVehiclePawn::UpdateEngineSmoke()
+{
+    if (!EngineSmokeSystem || !CollisionBody)
+    {
+        return;
+    }
+    const bool bShouldSmoke = EngineTemperatureC >= EngineOverheatTemperatureC || RadiatorIntegrity < 0.35f;
+    if (bShouldSmoke && !IsValid(EngineSmokeComponent))
+    {
+        EngineSmokeComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+            EngineSmokeSystem, CollisionBody, NAME_None, FVector(140.0f, 0.0f, 95.0f),
+            FRotator::ZeroRotator, EAttachLocation::KeepRelativeOffset, true);
+    }
+    else if (!bShouldSmoke && IsValid(EngineSmokeComponent))
+    {
+        EngineSmokeComponent->Deactivate();
+        EngineSmokeComponent = nullptr;
+    }
+    if (IsValid(EngineSmokeComponent))
+    {
+        const float HeatAlpha = FMath::Clamp((EngineTemperatureC - EngineOverheatTemperatureC)
+            / FMath::Max(1.0f, EngineCriticalTemperatureC - EngineOverheatTemperatureC), 0.0f, 1.0f);
+        EngineSmokeComponent->SetVariableFloat(TEXT("User.HeatIntensity"), HeatAlpha);
+        EngineSmokeComponent->SetVariableFloat(TEXT("User.RadiatorDamage"), 1.0f - RadiatorIntegrity);
+    }
+}
+
+void AGCVehiclePawn::DamageTire(int32 WheelIndex, float DamageAmount)
+{
+    if (!TireConditions.IsValidIndex(WheelIndex) || DamageAmount <= 0.0f)
+    {
+        return;
+    }
+    FGCVehicleTireCondition& Tire = TireConditions[WheelIndex];
+    Tire.Integrity = FMath::Clamp(Tire.Integrity - DamageAmount, 0.0f, 1.0f);
+    Tire.bPunctured = Tire.Integrity <= 0.25f;
+    const float IntegrityGrip = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f), FVector2D(0.38f, 1.0f), Tire.Integrity);
+    Tire.GripScale = Tire.bPunctured ? FMath::Min(IntegrityGrip, FMath::Clamp(PuncturedTireMinimumGrip, 0.05f, 1.0f)) : IntegrityGrip;
+}
+
+void AGCVehiclePawn::RepairTires()
+{
+    for (FGCVehicleTireCondition& Tire : TireConditions)
+    {
+        Tire.Integrity = 1.0f;
+        Tire.bPunctured = false;
+        Tire.GripScale = 1.0f;
+    }
+}
+
+void AGCVehiclePawn::DamageRadiator(float DamageAmount)
+{
+    if (DamageAmount > 0.0f)
+    {
+        RadiatorIntegrity = FMath::Clamp(RadiatorIntegrity - DamageAmount, 0.0f, 1.0f);
+    }
+}
+
+void AGCVehiclePawn::RepairMechanicalSystems()
+{
+    RepairTires();
+    RadiatorIntegrity = 1.0f;
+    EngineTemperatureC = FMath::Max(20.0f, InitialEngineTemperatureC);
+    EngineMisfireSeverity = 0.0f;
+    bEngineStalled = false;
+    if (IsValid(EngineSmokeComponent))
+    {
+        EngineSmokeComponent->Deactivate();
+        EngineSmokeComponent = nullptr;
+    }
+}
+
+bool AGCVehiclePawn::BeginTrafficStop(AGCCharacter* Officer)
+{
+    AGCPlayerState* OfficerState = Officer ? Officer->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!Officer || !OfficerState || !OfficerState->IsPoliceOnDuty() || bTrafficStopped
+        || FVector::Dist(Officer->GetActorLocation(), GetActorLocation()) > 1300.0f)
+    {
+        if (Officer)
+        {
+            Officer->ShowSubtitle(TEXT("Traffic stops require an on-duty officer within 13 metres."));
+        }
+        return false;
+    }
+    TrafficStopSpeedKmh = GetSpeedKmh();
+    bTrafficStopped = true;
+    InputThrottle = 0.0f;
+    InputSteering = 0.0f;
+    bInputHandbrake = true;
+    SetSiren(true);
+    FString ObservedCues;
+    if (bDriverSlurredSpeech) ObservedCues += TEXT(" slurred speech;");
+    if (bDriverUnsteadyGait) ObservedCues += TEXT(" unsteady movement;");
+    if (ObservedCues.IsEmpty()) ObservedCues = TEXT(" no visible impairment cues;");
+    Officer->ShowSubtitle(FString::Printf(TEXT("Traffic stop: plate %s, captured speed %.0f km/h. Observations:%s use E-wheel to check ID and test."),
+        *LicensePlate, TrafficStopSpeedKmh, *ObservedCues), 6.0f);
+    OfficerState->AwardShiftPoints(2);
+    return true;
+}
+
+bool AGCVehiclePawn::RunBreathalyzer(AGCCharacter* Officer)
+{
+    AGCPlayerState* OfficerState = Officer ? Officer->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!Officer || !OfficerState || !OfficerState->IsPoliceOnDuty() || !OfficerState->bHasAlcoholTestKit || !bTrafficStopped)
+    {
+        if (Officer)
+        {
+            Officer->ShowSubtitle(TEXT("A lawful traffic stop and alcohol test kit are required before testing."));
+        }
+        return false;
+    }
+    if (!bDriverSlurredSpeech && !bDriverUnsteadyGait)
+    {
+        OfficerState->ApplyConductPenalty(8);
+        Officer->ShowSubtitle(TEXT("No observed impairment cues documented. Unjustified test; conduct points deducted."));
+        return false;
+    }
+    if (bDriverImpaired)
+    {
+        IssueTrafficCitation(Officer, EGCPoliceViolation::DUI);
+        Officer->ShowSubtitle(TEXT("Alcohol test POSITIVE. Impairment evidence recorded and DUI citation issued."), 5.0f);
+        return true;
+    }
+    OfficerState->AwardShiftPoints(4);
+    Officer->ShowSubtitle(TEXT("Alcohol test negative. Document the result and conclude the DUI inquiry."), 5.0f);
+    return true;
+}
+
+bool AGCVehiclePawn::RunDrugImpairmentTest(AGCCharacter* Officer)
+{
+    AGCPlayerState* OfficerState = Officer ? Officer->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!Officer || !OfficerState || !OfficerState->IsPoliceOnDuty() || !OfficerState->bHasDrugTestKit || !bTrafficStopped)
+    {
+        if (Officer) Officer->ShowSubtitle(TEXT("A lawful traffic stop and drug test kit are required before testing."));
+        return false;
+    }
+    if (!bDriverUnsteadyGait)
+    {
+        OfficerState->ApplyConductPenalty(8);
+        Officer->ShowSubtitle(TEXT("No observed drug-impairment cues documented. Unjustified test; conduct points deducted."));
+        return false;
+    }
+    if (bDriverDrugImpaired)
+    {
+        IssueTrafficCitation(Officer, EGCPoliceViolation::DUI);
+        Officer->ShowSubtitle(TEXT("Drug test POSITIVE. Drug-impairment evidence recorded and DUI citation issued."), 5.0f);
+        return true;
+    }
+    OfficerState->AwardShiftPoints(4);
+    Officer->ShowSubtitle(TEXT("Drug test negative. Document the result and conclude the impairment inquiry."), 5.0f);
+    return true;
+}
+
+bool AGCVehiclePawn::IssueTrafficCitation(AGCCharacter* Officer, EGCPoliceViolation Violation)
+{
+    AGCPlayerState* OfficerState = Officer ? Officer->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!Officer || !OfficerState || !OfficerState->IsPoliceOnDuty())
+    {
+        return false;
+    }
+    bool bObserved = false;
+    bool bRequiresStop = true;
+    int32 Fine = 0;
+    const TCHAR* ViolationName = TEXT("unknown traffic offense");
+    switch (Violation)
+    {
+    case EGCPoliceViolation::ExpiredMeter: bObserved = bExpiredMeter; bRequiresStop = false; Fine = 55; ViolationName = TEXT("expired meter"); break;
+    case EGCPoliceViolation::SidewalkParking: bObserved = bParkedOnSidewalk; bRequiresStop = false; Fine = 125; ViolationName = TEXT("sidewalk parking"); break;
+    case EGCPoliceViolation::BlockingFireHydrant: bObserved = bBlockingFireHydrant; bRequiresStop = false; Fine = 250; ViolationName = TEXT("blocking a fire hydrant"); break;
+    case EGCPoliceViolation::AgainstTraffic: bObserved = bAgainstTraffic; bRequiresStop = false; Fine = 90; ViolationName = TEXT("parking against traffic"); break;
+    case EGCPoliceViolation::Speeding: bObserved = TrafficStopSpeedKmh >= 65.0f; Fine = 120; ViolationName = TEXT("speeding"); break;
+    case EGCPoliceViolation::IllegalTurn: bObserved = bCommittedIllegalTurn; Fine = 100; ViolationName = TEXT("illegal turn"); break;
+    case EGCPoliceViolation::BrokenTailLight: bObserved = !bTailLightsFunctional; bRequiresStop = false; Fine = 85; ViolationName = TEXT("broken tail light"); break;
+    case EGCPoliceViolation::SmokeExhaust: bObserved = bSmokingExhaust || EngineTemperatureC >= EngineOverheatTemperatureC; bRequiresStop = false; Fine = 110; ViolationName = TEXT("smoking exhaust"); break;
+    case EGCPoliceViolation::RecklessDriving: bObserved = bRecklessDriving; Fine = 300; ViolationName = TEXT("reckless driving"); break;
+    case EGCPoliceViolation::DUI: bObserved = (bDriverImpaired || bDriverDrugImpaired) && bTrafficStopped; Fine = 500; ViolationName = TEXT("driving under the influence"); break;
+    case EGCPoliceViolation::UnlicensedDriving: bObserved = !bDriverHasValidLicense && bTrafficStopped; Fine = 200; ViolationName = TEXT("unlicensed driving"); break;
+    default: break;
+    }
+    if (!bObserved || (bRequiresStop && !bTrafficStopped))
+    {
+        OfficerState->ApplyConductPenalty(12);
+        Officer->ShowSubtitle(TEXT("Traffic citation rejected: no documented violation or valid stop evidence."));
+        return false;
+    }
+
+    FGCPoliceCitationRecord Citation;
+    Citation.CitationID = FString::Printf(TEXT("TRF-%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(8).ToUpper());
+    Citation.Violation = Violation;
+    Citation.FineAmount = Fine;
+    Citation.IssuedUtc = FDateTime::UtcNow();
+    Citation.EvidenceNote = FString::Printf(TEXT("%s; plate %s; recorded speed %.1f km/h."), ViolationName, *LicensePlate, TrafficStopSpeedKmh);
+    if (AGCCharacter* Driver = GetDriver())
+    {
+        if (AGCPlayerState* DriverState = Driver->GetPlayerState<AGCPlayerState>())
+        {
+            Citation.CitizenID = DriverState->CitizenID;
+            Citation.CitizenName = DriverState->CitizenName;
+        }
+    }
+    if (Citation.CitizenName.IsEmpty())
+    {
+        Citation.CitizenName = FString::Printf(TEXT("Registered driver — %s"), *LicensePlate);
+    }
+    OfficerState->RecordPoliceCitation(Citation);
+    OfficerState->AwardShiftPoints(12);
+    Officer->ShowSubtitle(FString::Printf(TEXT("Traffic citation issued: %s, $%d. Evidence attached to plate %s."),
+        ViolationName, Fine, *LicensePlate), 5.0f);
+    return true;
+}
+
+void AGCVehiclePawn::ReleaseTrafficStop(AGCCharacter* Officer)
+{
+    const AGCPlayerState* OfficerState = Officer ? Officer->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!Officer || !OfficerState || !OfficerState->IsPoliceOnDuty() || !bTrafficStopped)
+    {
+        return;
+    }
+    bTrafficStopped = false;
+    bInputHandbrake = false;
+    SetSiren(false);
+    Officer->ShowSubtitle(FString::Printf(TEXT("Traffic stop cleared for plate %s."), *LicensePlate), 3.0f);
 }
 
 void AGCVehiclePawn::OnVehicleDeath(AActor* Killer)

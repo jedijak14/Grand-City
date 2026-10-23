@@ -1,4 +1,5 @@
 #include "Vehicle/GCAirlinerPawn.h"
+#include "World/GCAirlinerJetwayActor.h"
 #include "Camera/CameraComponent.h"
 #include "Character/GCCharacter.h"
 #include "Components/BoxComponent.h"
@@ -36,22 +37,22 @@ AGCAirlinerPawn::AGCAirlinerPawn()
 
 	PlayerSeat = CreateDefaultSubobject<USceneComponent>(TEXT("PlayerSeat"));
 	PlayerSeat->SetupAttachment(Root);
-	PlayerSeat->SetRelativeLocation(FVector(180.0f, -70.0f, 90.0f));
+	PlayerSeat->SetRelativeLocation(FVector(50.0f, 430.0f, 90.0f));
 
 	for (int32 i = 0; i < 8; ++i)
 	{
 		USceneComponent* Seat = CreateDefaultSubobject<USceneComponent>(
 			*FString::Printf(TEXT("PassengerSeat%d"), i));
 		Seat->SetupAttachment(Root);
-		const float RowX = 100.0f - (i / 2) * 95.0f;
-		const float SideY = (i % 2 == 0) ? 75.0f : -75.0f;
-		Seat->SetRelativeLocation(FVector(RowX, SideY, 90.0f));
+		const float RowY = 430.0f - (i / 2) * 95.0f;
+		const float SideX = (i % 2 == 0) ? 75.0f : -75.0f;
+		Seat->SetRelativeLocation(FVector(SideX, RowY, 90.0f));
 		PassengerSeats.Add(Seat);
 	}
 
 	ExitPoint = CreateDefaultSubobject<USceneComponent>(TEXT("ExitPoint"));
 	ExitPoint->SetupAttachment(Root);
-	ExitPoint->SetRelativeLocation(FVector(420.0f, -320.0f, 20.0f));
+	ExitPoint->SetRelativeLocation(FVector(-220.0f, 0.0f, 20.0f));
 
 	CabinCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CabinCamera"));
 	CabinCamera->SetupAttachment(Root);
@@ -76,6 +77,7 @@ AGCAirlinerPawn::AGCAirlinerPawn()
 	Voice = CreateDefaultSubobject<UGCVoiceLineComponent>(TEXT("Voice"));
 
 	PassengerClass = AGCPedestrian::StaticClass();
+    JetwayClass = AGCAirlinerJetwayActor::StaticClass();
 
 	MovieTitles = {
 		TEXT("Midnight Runway (Action)"),
@@ -97,6 +99,55 @@ void AGCAirlinerPawn::BeginPlay()
 	Super::BeginPlay();
 	LastPosition = GetActorLocation();
 	LastYaw = GetActorRotation().Yaw;
+    DeployJetway();
+}
+
+void AGCAirlinerPawn::DeployJetway()
+{
+    if (!bAutoDeployJetway || !JetwayClass || AutoJetway || Phase == EGCFlightPhase::TakeoffRoll
+        || Phase == EGCFlightPhase::Climb || Phase == EGCFlightPhase::Cruise || Phase == EGCFlightPhase::Descent
+        || Phase == EGCFlightPhase::FinalApproach)
+    {
+        return;
+    }
+    const FRotator JetwayRotation = GetActorRotation() + FRotator(0.0f, -90.0f, 0.0f);
+    const FTransform JetwayTransform(JetwayRotation, GetActorTransform().TransformPosition(JetwayLocalOffset));
+    AutoJetway = GetWorld()->SpawnActorDeferred<AGCAirlinerJetwayActor>(
+        JetwayClass, JetwayTransform, this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (AutoJetway)
+    {
+        AutoJetway->LinkedAirliner = this;
+        AutoJetway->FinishSpawning(JetwayTransform);
+    }
+}
+
+void AGCAirlinerPawn::RetractJetway()
+{
+    if (IsValid(AutoJetway))
+    {
+        AutoJetway->Destroy();
+    }
+    AutoJetway = nullptr;
+}
+
+void AGCAirlinerPawn::AssignSeatFromBoardingPass(const FString& SeatLabel)
+{
+    if (SeatLabel.Len() < 2 || !PlayerSeat)
+    {
+        return;
+    }
+    const int32 Row = FMath::Clamp(FCString::Atoi(*SeatLabel.LeftChop(1)), 1, 38);
+    const TCHAR Letter = SeatLabel[SeatLabel.Len() - 1];
+    const int32 Column = FMath::Clamp(static_cast<int32>(Letter - TEXT('A')), 0, 5);
+    const float SideOffset = (2.5f - static_cast<float>(Column)) * SeatLateralSpacingCm;
+    PlayerSeat->SetRelativeLocation(FVector(SideOffset, CabinFirstRowY - (Row - 1) * SeatRowPitchCm, 90.0f));
+    const bool bWindowSeat = Letter == TEXT('A') || Letter == TEXT('F');
+    const float WindowDirection = Letter == TEXT('A') ? 1.0f : -1.0f;
+    CabinCamera->SetRelativeLocation(PlayerSeat->GetRelativeLocation()
+        + (bWindowSeat ? FVector(WindowDirection * 95.0f, 0.0f, 65.0f) : FVector(0.0f, 0.0f, 65.0f)));
+    CabinCamera->SetRelativeRotation(bWindowSeat
+        ? FRotator(-3.0f, WindowDirection > 0.0f ? 0.0f : 180.0f, 0.0f)
+        : FRotator(-3.0f, 90.0f, 0.0f));
 }
 
 // ---------------------------------------------------------------- helpers
@@ -198,12 +249,16 @@ bool AGCAirlinerPawn::BoardPassenger(AGCCharacter* Character)
 			Character->ShowSubtitle(TEXT("Gate agent: I'll need a checked-in boarding pass — the check-in computers are in the terminal."), 5.0f);
 			return false;
 		}
-		if (PS->ActiveTicket.FromCode != FromCode || PS->ActiveTicket.ToCode != ToCode)
+		if (PS->ActiveTicket.FromCode != FromCode || PS->ActiveTicket.ToCode != ToCode
+            || PS->ActiveTicket.FlightNumber != FlightNumber)
 		{
-			Character->ShowSubtitle(TEXT("Gate agent: This boarding pass is for a different route. Check the screens for your flight."), 5.0f);
+			Character->ShowSubtitle(TEXT("Gate agent: This pass is for another flight. Check your airline, flight number and route."), 5.0f);
 			return false;
 		}
 		FGCFlightTicket Ticket = PS->ActiveTicket;
+        AirlineName = Ticket.Airline;
+        FlightNumber = Ticket.FlightNumber;
+        AssignSeatFromBoardingPass(Ticket.Seat);
 		Ticket.Status = EGCTicketStatus::Boarded;
 		PS->SetTicket(Ticket);
 	}
@@ -221,7 +276,9 @@ bool AGCAirlinerPawn::BoardPassenger(AGCCharacter* Character)
 	Phase = EGCFlightPhase::Boarding;
 	DepartCountdown = 5.0f;
 	SpawnNPCPassengers();
-	Announce(TEXT("WelcomeAboard"), TEXT("Welcome aboard Gridline Air! Find your seat, stow your bags, and we'll be pushing back shortly."));
+    RetractJetway();
+	Announce(TEXT("WelcomeAboard"), FString::Printf(TEXT("Welcome aboard %s, flight %s. Seat %s. Find your row and make yourself comfortable."),
+        *AirlineName, *FlightNumber, PS && PS->HasActiveTicket() ? *PS->ActiveTicket.Seat : TEXT("assigned seat")));
 	return true;
 }
 
@@ -256,8 +313,15 @@ void AGCAirlinerPawn::Disembark()
 
 	if (bCompletedFlight)
 	{
-		// Turn the aircraft around for the next passenger (same parking spot logic next flight).
+		// Turn the aircraft around for the return service after passengers leave.
 		Phase = EGCFlightPhase::Parked;
+        DeployJetway();
+    }
+    else if (!bFlying)
+    {
+        Phase = EGCFlightPhase::Parked;
+        DepartCountdown = -1.0f;
+        DeployJetway();
 	}
 }
 
@@ -309,6 +373,9 @@ void AGCAirlinerPawn::StartFlight()
 {
 	if (!DestinationActor)
 	{
+		DepartCountdown = -1.0f;
+        Phase = EGCFlightPhase::Parked;
+        DeployJetway();
 		Announce(TEXT("Delay"), TEXT("We're sorry — this flight is delayed because the destination airport isn't set up in the level yet."));
 		return;
 	}
@@ -338,6 +405,7 @@ void AGCAirlinerPawn::FinishFlight()
 	SetPhase(EGCFlightPhase::Landed);
 	Phase = EGCFlightPhase::Arrived; // Landed announcement above, state settles to Arrived
 	DisplaySpeedKmh = 0.0f;
+    DeployJetway();
 }
 
 void AGCAirlinerPawn::Tick(float DeltaSeconds)
@@ -359,7 +427,7 @@ void AGCAirlinerPawn::Tick(float DeltaSeconds)
 		if (ArrivedTimer > 3.0f)
 		{
 			bGateAnnouncementPlayed = true;
-			Announce(TEXT("GateArrival"), TEXT("We've arrived at the gate. Thank you for flying Gridline Air — press E to head into the terminal."));
+			Announce(TEXT("GateArrival"), FString::Printf(TEXT("We've arrived at the gate. Thank you for flying %s. The jetway is open; follow it into the terminal."), *AirlineName));
 		}
 	}
 
@@ -413,7 +481,7 @@ void AGCAirlinerPawn::Tick(float DeltaSeconds)
 // ---------------------------------------------------------------- entertainment
 FString AGCAirlinerPawn::GetSeatbackScreenText() const
 {
-	FString Header = FString::Printf(TEXT("GRIDLINE AIR  %s -> %s   [%s]\n"), *FromCode, *ToCode, *GetPhaseText());
+	FString Header = FString::Printf(TEXT("%s  %s  %s -> %s   [%s]\n"), *AirlineName, *FlightNumber, *FromCode, *ToCode, *GetPhaseText());
 	switch (EntertainmentMode)
 	{
 	case EGCEntertainmentMode::Off:

@@ -11,6 +11,10 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Core/GCGameUserSettings.h"
+#include "Character/GCCharacter.h"
+#include "Character/GCPedestrian.h"
+#include "Components/GCClothPhysicsLibrary.h"
+#include "EngineUtils.h"
 
 namespace
 {
@@ -76,7 +80,7 @@ void UGCSettingsWidget::NativeConstruct()
 	BloodCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Blood effects"));
 	WavesCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Ocean waves"));
 	GrassCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Grass"));
-	ClothCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Cloth and hair physics"));
+	ClothCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Chaos Cloth / authored hair simulation"));
 	TrafficDensitySlider = AddSettingsSlider(WidgetTree, Stack, TEXT("Traffic density (0–60)"));
 	PedestrianDensitySlider = AddSettingsSlider(WidgetTree, Stack, TEXT("Pedestrian density (0–80)"));
 	DayLengthSlider = AddSettingsSlider(WidgetTree, Stack, TEXT("Day length (0 = frozen, up to 30 minutes)"));
@@ -133,7 +137,19 @@ void UGCSettingsWidget::HandleSettingChanged(bool)
 	Settings->bBloodEnabled = BloodCheckBox && BloodCheckBox->IsChecked();
 	Settings->bWavesEnabled = WavesCheckBox && WavesCheckBox->IsChecked();
 	Settings->bGrassEnabled = GrassCheckBox && GrassCheckBox->IsChecked();
+    const bool bClothWasEnabled = Settings->bClothAndHairPhysics;
 	Settings->bClothAndHairPhysics = ClothCheckBox && ClothCheckBox->IsChecked();
+    if (bClothWasEnabled != Settings->bClothAndHairPhysics && GetWorld())
+    {
+        for (TActorIterator<AGCCharacter> It(GetWorld()); It; ++It)
+        {
+            It->RefreshClothAndHairVisibility();
+        }
+        for (TActorIterator<AGCPedestrian> It(GetWorld()); It; ++It)
+        {
+            UGCClothPhysicsLibrary::ApplyClothSimulation(*It, Settings->bClothAndHairPhysics, 1.0f);
+        }
+    }
 	Settings->ApplySettings(false);
 	Settings->SaveSettings();
 }

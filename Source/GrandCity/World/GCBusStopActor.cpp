@@ -84,8 +84,25 @@ void AGCBusStopActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, AActor* Ot
 		Passenger->SetCurrentBusStop(this);
 		const FString DestinationName = DestinationStops.IsValidIndex(SelectedDestinationIndex)
 			&& IsValid(DestinationStops[SelectedDestinationIndex]) ? DestinationStops[SelectedDestinationIndex]->StopName : TEXT("choose a route");
-		Passenger->ShowSubtitle(FString::Printf(TEXT("Bus stop %s to %s — Tab routes, E board ($%d)."),
-			*StopName, *DestinationName, Fare), 5.0f);
+        float BestArrivalSeconds = TNumericLimits<float>::Max();
+        for (TActorIterator<AGCBusPawn> BusIt(GetWorld()); BusIt; ++BusIt)
+        {
+            if (AGCBusPawn* Bus = *BusIt)
+            {
+                const float ETA = Bus->GetEstimatedArrivalSeconds(this);
+                if (ETA >= 0.0f)
+                {
+                    BestArrivalSeconds = FMath::Min(BestArrivalSeconds, ETA);
+                }
+            }
+        }
+        const FString ArrivalText = BestArrivalSeconds < TNumericLimits<float>::Max()
+            ? (BestArrivalSeconds < 60.0f
+                ? FString::Printf(TEXT("next bus ~%ds"), FMath::CeilToInt(BestArrivalSeconds))
+                : FString::Printf(TEXT("next bus ~%d min"), FMath::CeilToInt(BestArrivalSeconds / 60.0f)))
+            : TEXT("no active bus estimate");
+        Passenger->ShowSubtitle(FString::Printf(TEXT("%s to %s — %s. Tab routes; E board ($%d)."),
+            *StopName, *DestinationName, *ArrivalText, Fare), 6.0f);
 	}
 }
 

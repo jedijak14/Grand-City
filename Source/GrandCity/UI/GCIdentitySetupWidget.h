@@ -6,6 +6,7 @@
 
 class UButton;
 class UEditableTextBox;
+class UComboBoxString;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGCIdentitySetupComplete);
@@ -26,6 +27,15 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UEditableTextBox> NameField;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UEditableTextBox> DateOfBirthField;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UComboBoxString> SexChoice;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UComboBoxString> LicenseChoice;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> FeedbackText;

@@ -48,8 +48,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "DayNight")
 	float NightFactor = 0.0f;
 
+    UPROPERTY(BlueprintReadOnly, Category = "DayNight|Calendar")
+    int64 GameDayIndex = 0;
+
 	UFUNCTION(BlueprintCallable, Category = "DayNight")
 	void SetTimeOfDay(float Hour);
+
+    UFUNCTION(BlueprintCallable, Category = "DayNight|Calendar")
+    void SetGameClock(float Hour, int64 DayIndex);
 
 private:
 	void GenerateStars();

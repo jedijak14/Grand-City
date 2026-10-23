@@ -41,8 +41,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Police")
 	float ShootRange = 4200.0f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "AI|Navigation", meta = (ClampMin = "0.0"))
+    float StuckSpeedThreshold = 22.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "AI|Navigation", meta = (ClampMin = "0.5"))
+    float StuckRecoverySeconds = 3.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "AI|Navigation", meta = (ClampMin = "0.0"))
+    float StuckSampleInterval = 0.5f;
+
 	UFUNCTION(BlueprintCallable, Category = "AI")
 	void StartFlee(const FVector& DangerLocation);
+
+    void ResumeFromPoliceStop();
 
 private:
 	UPROPERTY()
@@ -52,7 +63,11 @@ private:
 	float FleeUntilTime = 0.0f;
 	float ArrestProgress = 0.0f;
 	FVector FleeFromLocation = FVector::ZeroVector;
+    FVector LastStuckSampleLocation = FVector::ZeroVector;
+    float StuckSampleTimer = 0.0f;
+    float StuckDuration = 0.0f;
 
+    bool RecoverFromStuck(float DeltaSeconds);
 	void PickWanderTarget();
 	void UpdateFlee();
 	void UpdatePolice(float DeltaSeconds);

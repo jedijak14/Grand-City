@@ -1,4 +1,5 @@
 #include "Components/GCWeaponComponent.h"
+#include "Character/GCPedestrian.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/Controller.h"
@@ -55,8 +56,16 @@ float UGCWeaponComponent::FireOnce(const FVector& Start, const FVector& Directio
 		{
 			InstigatorController = OwnerPawn->GetController();
 		}
-		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Damage, ShotDir, Hit,
+        const float AppliedDamage = WeaponType == EGCWeaponType::Taser ? 4.0f : Damage;
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), AppliedDamage, ShotDir, Hit,
 			InstigatorController, Owner, UDamageType::StaticClass());
+        if (WeaponType == EGCWeaponType::Taser)
+        {
+            if (AGCPedestrian* Pedestrian = Cast<AGCPedestrian>(Hit.GetActor()); Pedestrian && !Pedestrian->bDead)
+            {
+                Pedestrian->KnockDown(4.0f);
+            }
+        }
 
 		if (ImpactFX)
 		{
@@ -69,9 +78,13 @@ float UGCWeaponComponent::FireOnce(const FVector& Start, const FVector& Directio
 	{
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, MuzzleFX, Start, Direction.Rotation());
 	}
-	if (FireSound && Owner)
+	if (Owner)
 	{
-		UGameplayStatics::PlaySoundAtLocation(World, FireSound, Owner->GetActorLocation());
+        USoundBase* ShotSound = bSuppressed && SuppressedFireSound ? SuppressedFireSound.Get() : FireSound;
+        if (ShotSound)
+        {
+            UGameplayStatics::PlaySoundAtLocation(World, ShotSound, Owner->GetActorLocation(), bSuppressed ? 0.28f : 1.0f);
+        }
 	}
 	if (bDrawDebugTracer)
 	{
@@ -118,6 +131,10 @@ void UGCWeaponComponent::ConfigureForType(EGCWeaponType NewType)
 		Damage = 120.0f; FireRateRPM = 45.0f; MagazineSize = 5; bAutomatic = false;
 		SpreadDegrees = 0.15f; RecoilPitchDegrees = 2.4f; ReloadSeconds = 3.0f;
 		break;
+    case EGCWeaponType::Taser:
+        Damage = 4.0f; FireRateRPM = 60.0f; MagazineSize = 2; bAutomatic = false;
+        SpreadDegrees = 0.55f; RecoilPitchDegrees = 0.1f; ReloadSeconds = 2.2f;
+        break;
 	}
 	AmmoInMagazine = MagazineSize;
 	bReloading = false;

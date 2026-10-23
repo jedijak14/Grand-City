@@ -16,15 +16,23 @@
   animated split doors, a doorway obstruction sensor, collision walls, a moving floor, and two linked
   interaction landings in the starter map.
 - The harbor look-development builder adds a coastal boulevard and procedural facades/props,
-  player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile.
+  player spawn, lighting setup, a 192-cell wave surface, and a high scalability profile. Its
+  starter-city path now also generates two walkable airport terminal greyboxes (check-in, security,
+  gate lounge, amenities and reciprocal Coastline ticket kiosks/airliner pawns); this editor script
+  has only passed Python syntax checks, not execution in Unreal.
 - `Tools/CreateGrandCityArdenGT.py` generates a 176k-triangle original static vehicle prototype.
   The available GLB character/vehicle models are samples; production-quality custom, rigged car
-  and character assets are still outstanding.
+  and character assets are still outstanding. Six Quaternius CC0 rigged character/outfit GLBs
+  were added under `ModelLibrary/Clothing/Quaternius/` (casual, formal, swimwear, tactical
+  reference), converted to standard GLB, and included in the editor import script. Unreal import,
+  retargeting, outfit-preset wiring, and cloth simulation remain outstanding.
 
 ## Verification status and blockers
 
-- Python syntax/AST checks and `git diff --check` have passed for the editor scripts and latest
-  source changes. These do not validate Unreal APIs or runtime behavior.
+- Python syntax/AST checks, the offline Quaternius wardrobe structural validator, and
+  `git diff --check` pass. They do not validate Unreal C++ APIs or runtime behavior. The new
+  `UGCClothPhysicsLibrary` toggles built-in Chaos Cloth controls across player/NPC skeletal meshes,
+  but requires authored Clothing Data and still needs UE 5.8 compilation and simulation testing.
 - **No Unreal Engine 5.8 or Visual Studio 2022 compiler is available in this workspace.** The new
   C++ additions (water wake response, escalator, and elevator actors), editor material creation, map
   appearance, moving-platform carry, landing overlap, collision, animation, cooking, and performance

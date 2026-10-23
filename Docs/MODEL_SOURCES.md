@@ -26,6 +26,14 @@ preview was used for basic occlusion and silhouette inspection; this is not an U
 The asset is not an animated or deformable body asset by itself. Vehicle body damage requires a CPU-accessible mesh
 and is currently a visual surface-dent approximation, not structural soft-body physics.
 
+## Rigged clothing and character source added
+
+Six Quaternius character/outfit GLBs are now included under `ModelLibrary/Clothing/Quaternius/` (male/female casual, formal, swimwear, plus a tactical-police reference). The source is CC0; asset credits and provenance are recorded in that folder's `ASSET_CREDITS.txt`. They were converted to uncompressed, dequantized GLB for importer compatibility and validated as glTF. They are full characters with multiple skinned meshes and animations—not drop-in clothing overlays. Unreal import, skeletal mesh assembly/retargeting, and materials still need editor validation before use on the current character rig.
+
+`Tools/ImportModels_Editor.py` now imports this folder to `/Game/Gridlock/Characters/Clothing`. This only imports the files; it does not retarget skeletons, set up outfit presets, or turn on cloth simulation.
+
+Free3D was reviewed for an explicitly commercial-use asset: Camille Kleinman's Hanging Shirt is a static OBJ and not suitable as wearable clothing. It was not copied into the project. Free3D model terms are per asset; verify the exact license and rig/format before adding future assets.
+
 ## High-detail free sources (verify every license)
 
 Sketchfab and Fab downloads may require an account. Workflow: download a model with a license

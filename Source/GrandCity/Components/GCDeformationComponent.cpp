@@ -1,6 +1,7 @@
 #include "Components/GCDeformationComponent.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Components/SceneComponent.h"
 #include "KismetProceduralMeshLibrary.h"
 #include "ProceduralMeshComponent.h"
 
@@ -49,6 +50,7 @@ bool UGCDeformationComponent::InitializeFromStaticMesh(UStaticMeshComponent* Sou
 		Section.OriginalPositions.Reserve(NumVertices);
 		Section.CurrentPositions.Reserve(NumVertices);
 		Section.Normals.Reserve(NumVertices);
+        Section.StructuralHardness.Reserve(NumVertices);
 		Section.UVs.Reserve(NumVertices);
 		Section.Colors.Reserve(NumVertices);
 		Section.Tangents.Reserve(NumVertices);
@@ -58,6 +60,7 @@ bool UGCDeformationComponent::InitializeFromStaticMesh(UStaticMeshComponent* Sou
 			Section.OriginalPositions.Add(Vertex.Position);
 			Section.CurrentPositions.Add(Vertex.Position);
 			Section.Normals.Add(Vertex.Normal);
+            Section.StructuralHardness.Add(bUseVertexRedAsHardnessMask ? static_cast<float>(Vertex.Color.R) / 255.0f : 0.5f);
 			Section.UVs.Add(Vertex.UV0);
 			Section.Colors.Add(Vertex.Color);
 			Section.Tangents.Add(Vertex.Tangent);
@@ -121,7 +124,9 @@ void UGCDeformationComponent::ApplyDentLocal(const FVector& LocalPoint, const FV
 
 			const float Distance = FMath::Sqrt(DistanceSquared);
 			const float RadialFalloff = 0.5f + 0.5f * FMath::Cos((Distance / Radius) * PI);
-			const float AppliedDepth = Depth * RadialFalloff * FMath::Clamp(Facing, 0.0f, 1.0f);
+            const float Hardness = Section.StructuralHardness.IsValidIndex(VertexIndex) ? Section.StructuralHardness[VertexIndex] : 0.5f;
+            const float MaterialCompliance = bUseVertexRedAsHardnessMask ? FMath::Lerp(1.65f, 0.45f, Hardness) : 1.0f;
+			const float AppliedDepth = Depth * RadialFalloff * FMath::Clamp(Facing, 0.0f, 1.0f) * MaterialCompliance;
 			FVector NewPosition = CurrentPosition + Direction * AppliedDepth;
 			const FVector TotalOffset = NewPosition - Section.OriginalPositions[VertexIndex];
 			if (TotalOffset.SizeSquared() > FMath::Square(DisplacementLimit))
@@ -153,29 +158,87 @@ void UGCDeformationComponent::ApplyDentLocal(const FVector& LocalPoint, const FV
 
 void UGCDeformationComponent::ApplyDentWorld(const FVector& WorldPoint, const FVector& WorldImpactDirection, float Radius, float Depth)
 {
-	if (!bInitialized || !ProcMesh)
-	{
-		return;
-	}
-	const FVector LocalPoint = ProcMesh->GetComponentTransform().InverseTransformPosition(WorldPoint);
-	const FVector LocalDirection = ProcMesh->GetComponentTransform().InverseTransformVectorNoScale(WorldImpactDirection);
-	const float LargestScale = FMath::Max(0.01f, ProcMesh->GetComponentScale().GetAbsMax());
-	ApplyDentLocal(LocalPoint, LocalDirection, Radius / LargestScale, Depth / LargestScale);
+    if (Radius <= 0.0f || Depth <= 0.0f)
+    {
+        return;
+    }
+    if (bInitialized && ProcMesh)
+    {
+        const FVector LocalPoint = ProcMesh->GetComponentTransform().InverseTransformPosition(WorldPoint);
+        const FVector LocalDirection = ProcMesh->GetComponentTransform().InverseTransformVectorNoScale(WorldImpactDirection);
+        const float LargestScale = FMath::Max(0.01f, ProcMesh->GetComponentScale().GetAbsMax());
+        ApplyDentLocal(LocalPoint, LocalDirection, Radius / LargestScale, Depth / LargestScale);
+    }
+    ApplyStructuralStress(WorldPoint, WorldImpactDirection, Radius, Depth);
+}
+
+void UGCDeformationComponent::ApplyStructuralStress(const FVector& WorldPoint, const FVector& WorldDirection, float Radius, float Depth)
+{
+    const FVector Direction = WorldDirection.GetSafeNormal();
+    if (Direction.IsNearlyZero())
+    {
+        return;
+    }
+    for (FGCDetachableVehiclePart& Part : DetachableParts)
+    {
+        if (Part.bDetached || !IsValid(Part.Mesh))
+        {
+            continue;
+        }
+        const float InfluenceRadius = FMath::Max(Radius, 90.0f);
+        const float Distance = FVector::Distance(Part.Mesh->GetComponentLocation(), WorldPoint);
+        if (Distance >= InfluenceRadius)
+        {
+            continue;
+        }
+        const float Falloff = 1.0f - Distance / InfluenceRadius;
+        Part.AccumulatedStress += Depth * StructuralStressPerDentCm * Falloff;
+        if (Part.AccumulatedStress < FMath::Max(1.0f, Part.DetachStressThreshold))
+        {
+            continue;
+        }
+
+        UStaticMeshComponent* DetachedMesh = Part.Mesh;
+        DetachedMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+        DetachedMesh->SetCollisionProfileName(TEXT("PhysicsActor"));
+        DetachedMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        DetachedMesh->SetNotifyRigidBodyCollision(true);
+        DetachedMesh->SetSimulatePhysics(true);
+        DetachedMesh->AddImpulseAtLocation(Direction * PartDetachImpulse, WorldPoint, NAME_None);
+        Part.bDetached = true;
+    }
 }
 
 void UGCDeformationComponent::RepairAll()
 {
-	if (!bInitialized)
-	{
-		return;
-	}
-
-	for (FGCDeformationMeshSection& Section : MeshSections)
-	{
-		Section.CurrentPositions = Section.OriginalPositions;
-		RefreshMeshSection(Section);
-	}
-	DamageLevel = 0.0f;
+    if (bInitialized)
+    {
+        for (FGCDeformationMeshSection& Section : MeshSections)
+        {
+            Section.CurrentPositions = Section.OriginalPositions;
+            RefreshMeshSection(Section);
+        }
+    }
+    for (FGCDetachableVehiclePart& Part : DetachableParts)
+    {
+        if (!IsValid(Part.Mesh))
+        {
+            continue;
+        }
+        if (Part.bDetached)
+        {
+            Part.Mesh->SetSimulatePhysics(false);
+            Part.Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            if (IsValid(Part.OriginalParent))
+            {
+                Part.Mesh->AttachToComponent(Part.OriginalParent, FAttachmentTransformRules::KeepWorldTransform);
+                Part.Mesh->SetRelativeTransform(Part.InitialRelativeTransform);
+            }
+        }
+        Part.AccumulatedStress = 0.0f;
+        Part.bDetached = false;
+    }
+    DamageLevel = 0.0f;
 }
 
 void UGCDeformationComponent::RefreshMeshSection(FGCDeformationMeshSection& Section)
@@ -188,4 +251,88 @@ void UGCDeformationComponent::RefreshMeshSection(FGCDeformationMeshSection& Sect
 		Section.CurrentPositions, Section.Indices, Section.UVs, Section.Normals, Section.Tangents);
 	ProcMesh->UpdateMeshSection(Section.SectionIndex, Section.CurrentPositions, Section.Normals,
 		Section.UVs, Section.Colors, Section.Tangents);
+}
+
+void UGCDeformationComponent::BeginPlay()
+{
+    Super::BeginPlay();
+    AActor* Owner = GetOwner();
+    OwnerCollisionComponent = Owner ? Cast<UPrimitiveComponent>(Owner->GetRootComponent()) : nullptr;
+    if (IsValid(OwnerCollisionComponent))
+    {
+        OwnerCollisionComponent->OnComponentHit.AddDynamic(this, &UGCDeformationComponent::OnOwnerComponentHit);
+        OwnerCollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &UGCDeformationComponent::OnOwnerComponentBeginOverlap);
+    }
+    for (FGCDetachableVehiclePart& Part : DetachableParts)
+    {
+        if (IsValid(Part.Mesh))
+        {
+            Part.OriginalParent = Part.Mesh->GetAttachParent();
+            Part.InitialRelativeTransform = Part.Mesh->GetRelativeTransform();
+            Part.AccumulatedStress = 0.0f;
+            Part.bDetached = false;
+        }
+    }
+}
+
+void UGCDeformationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (IsValid(OwnerCollisionComponent))
+    {
+        OwnerCollisionComponent->OnComponentHit.RemoveDynamic(this, &UGCDeformationComponent::OnOwnerComponentHit);
+        OwnerCollisionComponent->OnComponentBeginOverlap.RemoveDynamic(this, &UGCDeformationComponent::OnOwnerComponentBeginOverlap);
+    }
+    OwnerCollisionComponent = nullptr;
+    Super::EndPlay(EndPlayReason);
+}
+
+void UGCDeformationComponent::OnOwnerComponentHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+    UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
+{
+    if (!IsValid(HitComponent) || !IsValid(OtherActor) || OtherActor == GetOwner() || !IsValid(OtherComponent))
+    {
+        return;
+    }
+    const FVector RelativeVelocity = HitComponent->GetComponentVelocity() - OtherComponent->GetComponentVelocity();
+    ProcessOwnerImpact(Hit, RelativeVelocity);
+}
+
+void UGCDeformationComponent::OnOwnerComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+    UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    if (!bFromSweep || !IsValid(OverlappedComponent) || !IsValid(OtherActor) || OtherActor == GetOwner())
+    {
+        return;
+    }
+    const FVector OtherVelocity = IsValid(OtherComponent) ? OtherComponent->GetComponentVelocity() : OtherActor->GetVelocity();
+    const FVector RelativeVelocity = OverlappedComponent->GetComponentVelocity() - OtherVelocity;
+    ProcessOwnerImpact(SweepResult, RelativeVelocity);
+}
+
+void UGCDeformationComponent::ProcessOwnerImpact(const FHitResult& Hit, const FVector& RelativeVelocity)
+{
+    const FVector ImpactNormal = Hit.ImpactNormal.GetSafeNormal();
+    if (ImpactNormal.IsNearlyZero())
+    {
+        return;
+    }
+    const float ClosingSpeedCmPerSec = -FVector::DotProduct(RelativeVelocity, ImpactNormal);
+    if (ClosingSpeedCmPerSec < 350.0f)
+    {
+        return;
+    }
+
+    float ImpactMassKg = 1400.0f;
+    if (IsValid(OwnerCollisionComponent) && OwnerCollisionComponent->IsSimulatingPhysics())
+    {
+        ImpactMassKg = FMath::Max(1.0f, OwnerCollisionComponent->GetMass());
+    }
+    const float SpeedMPerSec = ClosingSpeedCmPerSec / 100.0f;
+    const float ImpactEnergyKJ = 0.5f * ImpactMassKg * SpeedMPerSec * SpeedMPerSec / 1000.0f;
+    const float Severity = FMath::Clamp(FMath::Sqrt(ImpactEnergyKJ / 180.0f), 0.05f, 1.0f);
+    const float Radius = FMath::Lerp(55.0f, 170.0f, Severity);
+    const float Depth = FMath::Lerp(4.0f, 36.0f, Severity);
+    const FVector ImpactPoint = Hit.ImpactPoint.IsNearlyZero() && IsValid(OwnerCollisionComponent)
+        ? OwnerCollisionComponent->GetComponentLocation() : Hit.ImpactPoint;
+    ApplyDentWorld(ImpactPoint, -ImpactNormal, Radius, Depth);
 }

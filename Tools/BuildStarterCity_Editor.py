@@ -69,6 +69,79 @@ def cube(mesh, location, scale, label, rotation=None):
     return actor
 
 
+def find_coastline_aircraft_mesh():
+    """Use the imported livery GLB when available; otherwise retain a clearly labelled cube fallback."""
+    candidates = (
+        "/Game/GrandCity/Models/gridlock_coastline_a320.gridlock_coastline_a320",
+        "/Game/GrandCity/Models/gridlock_coastline_a320.Mesh",
+    )
+    for path in candidates:
+        asset = unreal.EditorAssetLibrary.load_asset(path)
+        if asset and isinstance(asset, unreal.StaticMesh):
+            return asset
+    try:
+        registry = unreal.AssetRegistryHelpers.get_asset_registry()
+        for asset_data in registry.get_assets_by_path("/Game/GrandCity/Models", recursive=True):
+            name = str(asset_data.asset_name).lower()
+            if "gridlock_coastline_a320" not in name:
+                continue
+            asset = asset_data.get_asset()
+            if asset and isinstance(asset, unreal.StaticMesh):
+                return asset
+    except Exception as error:
+        unreal.log_warning("Could not query the imported Coastline GLB: {}".format(error))
+    return None
+
+
+def build_airport_terminal(cube_mesh, airport_x, airport_y, airport_name, airport_code, destination_code, destination_city):
+    """Build a walkable two-storey-feel airport check-in/lounge blockout from modular cubes."""
+    cx, cy = airport_x, airport_y
+    label = "TEST - {} terminal".format(airport_name)
+    cube(cube_mesh, (cx, cy, -18.0), (32.0, 21.0, 0.36), label + " floor")
+    # Outer shell: open entrance on the south side; high walls and a roof slab frame an interior.
+    for side in (-1.0, 1.0):
+        cube(cube_mesh, (cx + side * 1550.0, cy, 250.0), (0.45, 20.0, 5.0), label + " side wall")
+    cube(cube_mesh, (cx, cy + 980.0, 250.0), (31.0, 0.45, 5.0), label + " apron wall")
+    for side in (-1.0, 1.0):
+        cube(cube_mesh, (cx + side * 950.0, cy - 980.0, 250.0), (12.0, 0.45, 5.0), label + " entrance wall")
+    cube(cube_mesh, (cx, cy, 550.0), (32.0, 21.0, 0.45), label + " roof")
+    # Ticketing island and six check-in counter positions.
+    for index in range(6):
+        x = cx - 1100.0 + index * 440.0
+        cube(cube_mesh, (x, cy - 560.0, 105.0), (170.0, 70.0, 18.0), label + " check-in counter {:02d}".format(index + 1))
+        cube(cube_mesh, (x, cy - 500.0, 205.0), (32.0, 8.0, 35.0), label + " counter screen {:02d}".format(index + 1))
+    # Security divider and screening lanes.
+    cube(cube_mesh, (cx + 720.0, cy - 80.0, 130.0), (20.0, 600.0, 26.0), label + " security divider")
+    for lane in range(3):
+        x = cx + 850.0 + lane * 190.0
+        cube(cube_mesh, (x, cy - 80.0, 60.0), (65.0, 330.0, 10.0), label + " security lane {:d}".format(lane + 1))
+        cube(cube_mesh, (x, cy + 260.0, 115.0), (65.0, 26.0, 65.0), label + " screening arch {:d}".format(lane + 1))
+    # Departure lounge seating rows, with a central accessible aisle.
+    for row in range(3):
+        for seat in range(8):
+            x = cx - 1250.0 + seat * 330.0
+            y = cy + 180.0 + row * 235.0
+            cube(cube_mesh, (x, y, 65.0), (125.0, 70.0, 14.0), label + " lounge seat")
+            cube(cube_mesh, (x, y + 78.0, 115.0), (125.0, 16.0, 55.0), label + " lounge seat back")
+    # Gate podiums and large, legible wayfinding boards.
+    for gate_index, gate_name in enumerate(("A3", "A4")):
+        gx = cx - 420.0 + gate_index * 900.0
+        cube(cube_mesh, (gx, cy + 830.0, 80.0), (150.0, 48.0, 16.0), label + " gate podium " + gate_name)
+        cube(cube_mesh, (gx, cy + 840.0, 225.0), (115.0, 8.0, 85.0), label + " gate sign " + gate_name)
+    cube(cube_mesh, (cx, cy - 910.0, 390.0), (530.0, 12.0, 100.0), label + " departures sign")
+    cube(cube_mesh, (cx + 1160.0, cy + 420.0, 240.0), (300.0, 18.0, 210.0), label + " restroom block")
+    cube(cube_mesh, (cx - 1180.0, cy + 460.0, 105.0), (260.0, 130.0, 16.0), label + " baggage services counter")
+    cube(cube_mesh, (cx - 1180.0, cy + 460.0, 220.0), (250.0, 8.0, 70.0), label + " baggage services sign")
+
+    kiosk = spawn(native_class("GCComputerTerminalActor"), (cx - 1230.0, cy - 330.0, 0.0))
+    kiosk.set_editor_property("airport_code", airport_code)
+    kiosk.set_editor_property("airport_city", airport_name)
+    kiosk.set_editor_property("destination_code", destination_code)
+    kiosk.set_editor_property("destination_city", destination_city)
+    kiosk.set_actor_label(label + " Coastline Airways self-service kiosk", mark_dirty=True)
+    return kiosk
+
+
 def main():
     if not unreal.EditorLevelLibrary.new_level(MAP_PATH):
         raise RuntimeError("Could not create {}. Create an empty level manually and rerun.".format(MAP_PATH))
@@ -121,7 +194,7 @@ def main():
         actor.set_actor_label(label, mark_dirty=True)
         mesh_component = actor.get_editor_property("building_mesh")
         if mesh_component:
-            if enum_name == "SkyscraperElevator":
+            if enum_name in ("SkyscraperElevator", "Airport"):
                 mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
                 mesh_component.set_visibility(False, True)
             else:
@@ -131,6 +204,38 @@ def main():
         locations.append(actor)
     locations[3].set_editor_property("flight_destination", locations[4])
     locations[4].set_editor_property("flight_destination", locations[3])
+
+    # Two walkable airport terminal blockouts, with separate Coastline Airways kiosks,
+    # counter islands, screening lanes, lounges, gate podiums, signage and facilities.
+    build_airport_terminal(cube_mesh, -8000.0, 6500.0, "Gridlock International", "GCI", "NIS", "North Island")
+    build_airport_terminal(cube_mesh, 8000.0, 6500.0, "North Island Airport", "NIS", "GCI", "Gridlock")
+
+    # Reciprocal passenger services use the linked airport actors as route endpoints.
+    airliner_cls = native_class("GCAirlinerPawn")
+    coastline_mesh = find_coastline_aircraft_mesh()
+    for airport_x, airport_y, origin_code, destination_code, destination_actor, registration in (
+        (-8000.0, 8200.0, "GCI", "NIS", locations[4], "PM-041"),
+        (8000.0, 8200.0, "NIS", "GCI", locations[3], "PM-042"),
+    ):
+        airliner = spawn(airliner_cls, (airport_x, airport_y, 100.0))
+        airliner.set_editor_property("airline_name", "Coastline Airways")
+        airliner.set_editor_property("flight_number", "CW 410")
+        airliner.set_editor_property("aircraft_registration", registration)
+        airliner.set_editor_property("from_code", origin_code)
+        airliner.set_editor_property("to_code", destination_code)
+        airliner.set_editor_property("destination_actor", destination_actor)
+        airliner.set_editor_property("b_auto_deploy_jetway", True)
+        airliner.set_editor_property("b_require_checked_in_ticket", True)
+        airliner.set_actor_label("TEST - Coastline Airways {} service {}".format(origin_code, registration), mark_dirty=True)
+        fuselage = airliner.get_editor_property("fuselage_mesh")
+        if fuselage:
+            if coastline_mesh:
+                fuselage.set_static_mesh(coastline_mesh)
+                fuselage.set_relative_scale3d(unreal.Vector(1.0, 1.0, 1.0))
+            else:
+                fuselage.set_static_mesh(cube_mesh)
+                fuselage.set_relative_scale3d(unreal.Vector(1.35, 8.0, 1.1))
+                unreal.log_warning("Coastline A320 GLB is not imported yet; using a fuselage cube fallback.")
 
     # A real moving car between the lobby and roof stations, with an open, visible guide shaft.
     elevator_cls = native_class("GCElevatorActor")
@@ -183,6 +288,28 @@ def main():
     if sign:
         sign.set_static_mesh(cube_mesh)
     cube(cube_mesh, (-4000.0, -4500.0, 170.0), (7.0, 7.0, 3.4), "TEST - Pacific View home blockout")
+
+    # Paired deed-checked access points demonstrate entry/exit for either purchased or stolen deeds.
+    target_point_cls = unreal.load_class(None, "/Script/Engine.TargetPoint")
+    if not target_point_cls:
+        raise RuntimeError("Could not load Engine.TargetPoint for property door destinations.")
+    outside_marker = spawn(target_point_cls, (-3200.0, -4500.0, 100.0))
+    interior_marker = spawn(target_point_cls, (-5000.0, -4500.0, 100.0))
+    outside_marker.set_actor_label("TEST - Pacific View outside arrival", mark_dirty=True)
+    interior_marker.set_actor_label("TEST - Pacific View interior arrival", mark_dirty=True)
+    property_door_cls = native_class("GCPropertyDoorActor")
+    entrance = spawn(property_door_cls, (-3300.0, -4500.0, 0.0))
+    entrance.set_editor_property("property_id", "TEST-PACIFIC-HOUSE")
+    entrance.set_editor_property("door_name", "Pacific View House")
+    entrance.set_editor_property("destination_marker", interior_marker)
+    entrance.set_editor_property("b_entering_interior", True)
+    entrance.set_actor_label("TEST - Pacific View deed-checked entrance", mark_dirty=True)
+    exit_door = spawn(property_door_cls, (-5000.0, -4500.0, 0.0))
+    exit_door.set_editor_property("property_id", "TEST-PACIFIC-HOUSE")
+    exit_door.set_editor_property("door_name", "Pacific View House")
+    exit_door.set_editor_property("destination_marker", outside_marker)
+    exit_door.set_editor_property("b_entering_interior", False)
+    exit_door.set_actor_label("TEST - Pacific View deed-checked exit", mark_dirty=True)
 
     device_store = spawn(native_class("GCDeviceStoreActor"), (4200.0, -5000.0, 0.0))
     device_store.set_actor_label("TEST - electronics retailer", mark_dirty=True)

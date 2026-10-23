@@ -38,6 +38,8 @@ AGCBusPawn::AGCBusPawn()
 void AGCBusPawn::BeginPlay()
 {
 	Super::BeginPlay();
+    RouteStops.RemoveAll([](AGCBusStopActor* Stop) { return !IsValid(Stop); });
+    CurrentRouteTargetIndex = 0;
 	TArray<FVector> Points;
 	for (AGCBusStopActor* Stop : RouteStops)
 	{
@@ -50,6 +52,7 @@ void AGCBusPawn::BeginPlay()
 	{
 		if (AGCVehicleAIController* RouteAI = GetWorld()->SpawnActor<AGCVehicleAIController>())
 		{
+            RouteAI->TrafficCruiseKmh = RouteCruiseKmh;
 			RouteAI->SetBusRoute(Points, StopDwellSeconds);
 			RouteAI->Possess(this);
 		}
@@ -80,8 +83,42 @@ bool AGCBusPawn::BoardPassenger(AGCCharacter* Character, AGCBusStopActor* Destin
 	return true;
 }
 
+float AGCBusPawn::GetEstimatedArrivalSeconds(AGCBusStopActor* Stop) const
+{
+    if (!IsValid(Stop) || RouteStops.Num() < 2 || !RouteStops.Contains(Stop))
+    {
+        return -1.0f;
+    }
+    const float CruiseSpeedCmPerSecond = FMath::Max(100.0f, RouteCruiseKmh * (100000.0f / 3600.0f));
+    FVector SegmentStart = GetActorLocation();
+    float TravelSeconds = 0.0f;
+    int32 Index = FMath::Clamp(CurrentRouteTargetIndex, 0, RouteStops.Num() - 1);
+    for (int32 Step = 0; Step < RouteStops.Num(); ++Step)
+    {
+        const int32 StopIndex = (Index + Step) % RouteStops.Num();
+        const AGCBusStopActor* RouteStop = RouteStops[StopIndex];
+        if (!IsValid(RouteStop))
+        {
+            return -1.0f;
+        }
+        const FVector StopLocation = RouteStop->GetActorLocation();
+        TravelSeconds += FVector::Dist2D(SegmentStart, StopLocation) / CruiseSpeedCmPerSecond;
+        if (RouteStop == Stop)
+        {
+            return TravelSeconds;
+        }
+        SegmentStart = StopLocation;
+        TravelSeconds += StopDwellSeconds;
+    }
+    return -1.0f;
+}
+
 void AGCBusPawn::NotifyRouteStopReached(int32 StopIndex)
 {
+    if (RouteStops.IsValidIndex(StopIndex))
+    {
+        CurrentRouteTargetIndex = (StopIndex + 1) % RouteStops.Num();
+    }
 	if (!PassengerCharacter || !IsValid(PassengerDestination) || !RouteStops.IsValidIndex(StopIndex))
 	{
 		return;

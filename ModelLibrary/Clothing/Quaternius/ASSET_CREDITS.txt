@@ -1,0 +1,24 @@
+Quaternius rigged clothing/character assets
+
+Original author: Quaternius (Gonzalo Furnier)
+Official packs:
+- Universal Base Characters: https://quaternius.com/packs/universalbasecharacters.html
+- Modular Character Outfits – Fantasy: https://quaternius.com/packs/modularcharacteroutfitsfantasy.html
+License: CC0 1.0 Universal (public domain dedication), as stated by the creator and in the upstream asset mirror's README. No attribution is required; credit is retained here for provenance.
+
+Source mirror: https://github.com/nikitapage10/models
+The mirror's README states that all assets outside its custom/ directory are Quaternius CC0 assets. Selected files were fetched from the men/ and women/ directories and converted to standard, uncompressed GLB with glTF-Transform 4.5.1 for broader importer compatibility. The outfit/character shape and animations remain source work; they were not authored by Gridlock.
+
+Included converted files:
+- Casual_2_men.glb (male casual outfit)
+- Suit_men.glb (male formal outfit)
+- Beach_men.glb (male beach/swim outfit)
+- Casual_women.glb (female casual outfit)
+- Suit_women.glb (female formal outfit)
+- Swat_men.glb (fictional tactical police reference; not the requested patrol uniform)
+
+Each source is a full rigged character/outfit GLB with embedded animations, not an isolated clothing garment. Conversion removed EXT_meshopt_compression and KHR_mesh_quantization; the files passed glTF Transform validation. Unreal import, skeleton retargeting, material review, and Chaos Cloth setup have not been performed.
+
+Free3D review:
+- Camille Kleinman's Hanging Shirt model page says personal and commercial use is allowed, but the asset is a static OBJ intended for practice/retopology, not rigged wearable clothing: https://free3d.com/3d-model/hanging-shirt-by-camille-kleinman-422695.html
+- Not bundled because it cannot serve as animated character clothing. Free3D listings have model-specific terms; verify the individual license before shipping any future download.

@@ -49,6 +49,13 @@ void AGCDayNightManager::SetTimeOfDay(float Hour)
 	ApplyTimeOfDay();
 }
 
+void AGCDayNightManager::SetGameClock(float Hour, int64 DayIndex)
+{
+    GameDayIndex = FMath::Max<int64>(0, DayIndex);
+    TimeOfDay = FMath::Fmod(FMath::Max(0.0f, Hour), 24.0f);
+    ApplyTimeOfDay();
+}
+
 void AGCDayNightManager::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -63,7 +70,10 @@ void AGCDayNightManager::Tick(float DeltaSeconds)
 	}
 	if (DayLength > 1.0f)
 	{
-		TimeOfDay = FMath::Fmod(TimeOfDay + DeltaSeconds * (24.0f / DayLength), 24.0f);
+        const float AdvancedTime = TimeOfDay + FMath::Max(0.0f, DeltaSeconds) * (24.0f / DayLength);
+        const int32 DaysAdvanced = FMath::FloorToInt(AdvancedTime / 24.0f);
+        GameDayIndex += FMath::Max(0, DaysAdvanced);
+		TimeOfDay = FMath::Fmod(AdvancedTime, 24.0f);
 	}
 
 	// Keep the sky rig centred over the player so the star dome never runs out.

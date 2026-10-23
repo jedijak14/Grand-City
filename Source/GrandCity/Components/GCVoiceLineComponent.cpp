@@ -88,6 +88,7 @@ bool UGCVoiceLineComponent::PlayFoundLine(const FGCVoiceLine& Line, FString& Out
 	{
 		Audio->SetSound(Line.Sound);
 		Audio->SetVolumeMultiplier(Volume);
+        Audio->SetPitchMultiplier(FMath::Clamp(PitchMultiplier, 0.5f, 1.5f));
 		Audio->Play();
 		const float SoundDuration = Line.Sound->GetDuration();
 		if (SoundDuration > 0.1f && SoundDuration < 120.0f)

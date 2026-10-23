@@ -9,6 +9,10 @@ class UGCMainMenuWidget;
 class UGCSettingsWidget;
 class UGCLoadingScreenWidget;
 class UGCIdentitySetupWidget;
+class UGCIdentityCardWidget;
+class UGCPoliceActionWheelWidget;
+class UGCBoardingPassWidget;
+class AGCDayNightManager;
 
 /**
  * Player controller: wanted-decay visibility checks + dev console commands.
@@ -23,6 +27,7 @@ public:
 	AGCPlayerController();
 
 	virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual void SetupInputComponent() override;
 
@@ -47,6 +52,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowMainMenu();
+
+    void ShowPoliceActionWheel(bool bVehicleMode);
+    void HidePoliceActionWheel();
+    void ShowBoardingPass(bool bPaperCopy);
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowSettingsMenu();
@@ -97,9 +106,14 @@ public:
 
 private:
 	float WantedCheckTimer = 0.0f;
+    float AutosaveTimer = 0.0f;
+    TWeakObjectPtr<AGCDayNightManager> CachedDayNightManager;
 	bool bPauseMenuOpen = false;
 	void UpdateWantedVisibility(float DeltaTime);
+    void EnsurePersonalVehicles();
 	void TogglePauseMenu();
+    void OpenPhoneBoardingPass();
+    void PrintBoardingPass();
 	void ShowPauseMenu();
 
 	UPROPERTY(Transient)
@@ -114,7 +128,18 @@ private:
 	UPROPERTY(Transient)
 	UGCIdentitySetupWidget* IdentitySetupWidget = nullptr;
 
+    UPROPERTY(Transient)
+    TObjectPtr<UGCIdentityCardWidget> IdentityCardWidget = nullptr;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UGCPoliceActionWheelWidget> PoliceActionWheelWidget = nullptr;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UGCBoardingPassWidget> BoardingPassWidget = nullptr;
+
 	UGCIdentitySetupWidget* EnsureIdentitySetup();
+    UGCIdentityCardWidget* EnsureIdentityCard();
+    void ToggleIdentityCard();
 	void ShowIdentitySetup();
 
 	bool bReturnToMainOnSettingsClose = false;
@@ -132,6 +157,9 @@ private:
 
 	UFUNCTION()
 	void HandleIdentitySetupComplete();
+
+    UFUNCTION()
+    void HandlePoliceActionSelected(FName ActionID);
 
 	UFUNCTION()
 	void HandleMenuSettings();

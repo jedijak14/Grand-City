@@ -9,8 +9,8 @@ Audio files live in `AudioVoice/`; run `Tools/ImportModels_Editor.py` to import 
 
 | LineID | File | Script |
 |---|---|---|
-| `CheckInGreeting` | `checkin_greeting.wav` | "Hello, and welcome to Gridline Air! I can book your flight and check you in right here. Today's departures are on the screen, and I'll get your boarding pass printed in no time." |
-| `BookingConfirmed` | `checkin_booking_confirmed.wav` | "You're booked! Shall I check you in now? Just press E, and I'll print your boarding pass with your seat and gate." |
+| `CheckInGreeting` | `checkin_greeting.wav` | "Hello, and welcome to Coastline Airways! I can book your flight and check you in right here. Today's departures are on the screen, and I'll get your boarding pass printed in no time." |
+| `BookingConfirmed` | `checkin_booking_confirmed.wav` | "You're booked! Shall I check you in now? Check in here and I'll send the pass to your phone; use F7 for a paper copy." |
 | `CheckInComplete` | `checkin_complete.wav` | "All checked in! Your seat and gate are on your boarding pass. Head through when you're ready, and have a great flight!" |
 | `PaymentDeclined` | `checkin_payment_declined.wav` | "I'm sorry, that payment didn't go through. The fare is on the screen if you'd like a different flight or class." |
 | `WrongAirport` | `checkin_wrong_airport.wav` | "That ticket departs from a different airport — check the airport code on your booking." |
@@ -21,14 +21,14 @@ Audio files live in `AudioVoice/`; run `Tools/ImportModels_Editor.py` to import 
 
 | LineID | File | Script |
 |---|---|---|
-| `WelcomeAboard` | `crew_welcome_aboard.wav` | "Welcome aboard Gridline Air! Please find your seat, stow your carry-on bags, and make yourselves comfortable. We'll be on our way shortly." |
+| `WelcomeAboard` | `crew_welcome_aboard.wav` | "Welcome aboard Coastline Airways! Please find your seat, stow your carry-on bags, and make yourselves comfortable. We'll be on our way shortly." |
 | `SafetyBriefing` | `crew_safety_briefing.wav` | "Cabin crew, doors to automatic. Ladies and gentlemen, please fasten your seatbelts, stow your tray tables, and ensure your seat backs are upright for takeoff." |
 | `CaptainClimb` | `captain_climb.wav` | "Good day from the flight deck. We're climbing smoothly to our cruising altitude. The weather en route is clear, so sit back and enjoy the flight." |
 | `CruiseService` | `crew_cruise_service.wav` | "We've reached cruising altitude. Your seatback screen has movies, music, games, and a live flight map. We'll be coming through with refreshments shortly." |
 | `Descent` | `captain_descent.wav` | "This is your captain. We're beginning our descent. Cabin crew, please prepare the cabin for arrival, and passengers, please return to your seats and fasten your seatbelts." |
 | `FinalApproach` | `captain_final_approach.wav` | "Cabin crew, prepare for landing. We'll be on the ground in just a few minutes." |
 | `Landed` | `crew_landed.wav` | "Welcome to our destination! Please remain seated with your seatbelt fastened until the aircraft comes to a complete stop at the gate." |
-| `GateArrival` | `crew_gate_arrival.wav` | "We've arrived at the gate. Thank you for flying Gridline Air. Press E to head into the terminal." |
+| `GateArrival` | `crew_gate_arrival.wav` | "We've arrived at the gate. Thank you for flying Coastline Airways. The jetway is open; follow it into the terminal." |
 
 ## NPCs → `BP_Ped` / `BP_PolicePed` (children of `GCPedestrian`)
 

@@ -13,6 +13,7 @@ class USpringArmComponent;
 class UGCVoiceLineComponent;
 class AGCCharacter;
 class AGCPedestrian;
+class AGCAirlinerJetwayActor;
 
 UENUM(BlueprintType)
 enum class EGCFlightPhase : uint8
@@ -81,6 +82,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Airliner")
 	UGCVoiceLineComponent* Voice;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Identity")
+    FString AirlineName = TEXT("Coastline Airways");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Identity")
+    FString FlightNumber = TEXT("CW 410");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Identity")
+    FString AircraftRegistration = TEXT("PM-041");
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Route")
 	FString FromCode = TEXT("GCI");
 
@@ -102,6 +112,25 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Passengers")
 	TSubclassOf<AGCPedestrian> PassengerClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Boarding")
+    TSubclassOf<AGCAirlinerJetwayActor> JetwayClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Boarding")
+    bool bAutoDeployJetway = true;
+
+    /** Local point at the fuselage door; adjust in the Blueprint for the imported mesh's axis/scale. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Boarding")
+    FVector JetwayLocalOffset = FVector(-145.0f, 0.0f, 0.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Cabin")
+    float CabinFirstRowY = 430.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Cabin")
+    float SeatRowPitchCm = 28.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Cabin")
+    float SeatLateralSpacingCm = 20.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airliner|Entertainment")
 	TArray<FString> MovieTitles;
@@ -149,6 +178,9 @@ private:
 	UPROPERTY()
 	TArray<AGCPedestrian*> NPCPassengers;
 
+    UPROPERTY(Transient)
+    TObjectPtr<AGCAirlinerJetwayActor> AutoJetway = nullptr;
+
 	bool bFlying = false;
 	float FlightElapsed = 0.0f;
 	float DepartCountdown = -1.0f;
@@ -167,6 +199,9 @@ private:
 	EGCFlightPhase LastAnnouncedPhase = EGCFlightPhase::Parked;
 
 	void StartFlight();
+    void DeployJetway();
+    void RetractJetway();
+    void AssignSeatFromBoardingPass(const FString& SeatLabel);
 	void FinishFlight();
 	void SpawnNPCPassengers();
 	void ReleaseNPCPassengers();

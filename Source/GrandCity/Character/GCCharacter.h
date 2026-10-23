@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/GCTypes.h"
 #include "GameFramework/Character.h"
 #include "GCCharacter.generated.h"
 
@@ -16,6 +17,8 @@ class USoundBase;
 class AGCLocationActor;
 class AGCComputerTerminalActor;
 class AGCRealEstateActor;
+class AGCPropertyDoorActor;
+class AGCPedestrian;
 class AGCDeviceStoreActor;
 class AGCBusStopActor;
 class AGCBusPawn;
@@ -34,7 +37,7 @@ class GRANDCITY_API AGCCharacter : public ACharacter
 public:
 	AGCCharacter();
 
-	/** Applies the Cloth-and-hair user setting to HoodieMesh/HairMesh visibility. */
+	/** Applies the Cloth-and-hair user setting to Chaos Cloth simulation on this character's skeletal meshes. */
 	UFUNCTION(BlueprintCallable, Category = "Character|Clothing")
 	void RefreshClothAndHairVisibility();
 
@@ -86,6 +89,24 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Clothing")
 	USkeletalMeshComponent* HairMesh;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Clothing")
+    TObjectPtr<USkeletalMeshComponent> OutfitMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Clothing", meta = (ClampMin = "0.0", ClampMax = "10.0"))
+    float ClothMaxDistanceScale = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Clothing")
+    TArray<FGCOutfitPreset> OutfitPresets;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Character|Clothing")
+    FName CurrentOutfitID;
+
+    UFUNCTION(BlueprintCallable, Category = "Character|Clothing")
+    void RefreshOutfitForProfile();
+
+    UFUNCTION(BlueprintCallable, Category = "Character|Clothing")
+    bool SetOutfitByID(FName OutfitID);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Movement")
 	float WalkSpeed = 420.0f;
 
@@ -113,6 +134,15 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
 	AGCRealEstateActor* CurrentProperty = nullptr;
 
+    UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+    AGCPropertyDoorActor* CurrentPropertyDoor = nullptr;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+    AGCPedestrian* CurrentPedestrian = nullptr;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+    AGCVehiclePawn* CurrentTrafficVehicle = nullptr;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
 	AGCDeviceStoreActor* CurrentDeviceStore = nullptr;
 
@@ -138,12 +168,19 @@ public:
 	void SetCurrentLocation(AGCLocationActor* Location) { CurrentLocation = Location; }
 	void SetCurrentComputer(AGCComputerTerminalActor* Computer) { CurrentComputer = Computer; }
 	void SetCurrentProperty(AGCRealEstateActor* Property) { CurrentProperty = Property; }
+    void SetCurrentPropertyDoor(AGCPropertyDoorActor* Door) { CurrentPropertyDoor = Door; }
+    AGCPropertyDoorActor* GetCurrentPropertyDoor() const { return CurrentPropertyDoor; }
 	void SetCurrentDeviceStore(AGCDeviceStoreActor* Store) { CurrentDeviceStore = Store; }
 	void SetCurrentBusStop(AGCBusStopActor* BusStop) { CurrentBusStop = BusStop; }
 	void SetCurrentBus(AGCBusPawn* Bus) { CurrentBus = Bus; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void ShowSubtitle(const FString& Text, float DurationSeconds = 4.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "Police|Interaction")
+    void DispatchPoliceAction(FName ActionID);
+
+    void BeginJailSentence(float DurationSeconds);
 
 	/** Adds wanted stars through the player state (witnessed crime calls this). */
 	void ReportCrime(int32 Stars);
@@ -169,6 +206,11 @@ private:
 	float BreathingRecoverySeconds = 0.0f;
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	FTimerHandle RespawnTimer;
+    FTimerHandle ContextWheelHoldTimer;
+    FTimerHandle JailSentenceTimer;
+    bool bServingJailSentence = false;
+    bool bWaitingForContextHold = false;
+    bool bContextWheelOpen = false;
 
 	void MoveForward(float Value);
 	void MoveRight(float Value);
@@ -184,6 +226,11 @@ private:
 	void Reload();
 	void Interact();
 	void CycleComputerOffer();
+    void OnInteractPressed();
+    void OnInteractReleased();
+    void OpenContextActionWheelAfterHold();
+    void AcceptCurrentJobOffer();
+    void DeclineCurrentJobOffer();
 	void CycleComputerClass();
 	void TryEnterVehicle();
 	void DeployParachute();
@@ -192,13 +239,30 @@ private:
 	void CyclePaymentMethod();
 	void RepayCreditCard();
 	void TryPickpocket();
+    void SellCurrentProperty();
+    void PayCurrentPropertyTax();
+	void MaintainCurrentProperty();
+    void RequestCitizenID();
+    void FriskCurrentCitizen();
+    void SearchCurrentCitizen();
+    void ArrestCurrentCitizen();
+    void ReleaseCurrentCitizen();
+    void InterviewCurrentCitizen();
+    void ShowPoliceContextActions();
+    void IssueJaywalkingCitation();
+    void IssueLitteringCitation();
+    void IssueLoiteringCitation();
+    void DeployRoadblock();
+    void CycleOutfit();
 	void EquipPistol();
 	void EquipRifle();
 	void EquipSMG();
 	void EquipSniper();
+    void EquipTaser();
 
 	void ScanForInteractables();
 	void UpdateSwimming();
 	void StartRagdoll();
-	void RespawnAtHospital();
+    void RespawnAtHospital();
+    void CompleteJailSentence();
 };

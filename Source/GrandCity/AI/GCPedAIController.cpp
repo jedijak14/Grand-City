@@ -60,6 +60,17 @@ void AGCPedAIController::StartFlee(const FVector& DangerLocation)
 	UpdateFlee();
 }
 
+void AGCPedAIController::ResumeFromPoliceStop()
+{
+    if (!Ped || Ped->bArrested || Ped->bDead)
+    {
+        return;
+    }
+    State = EGCPedState::Wander;
+    SetPedSpeed(Ped->WalkSpeed);
+    PickWanderTarget();
+}
+
 void AGCPedAIController::UpdateFlee()
 {
 	if (!Ped)
@@ -101,9 +112,11 @@ void AGCPedAIController::BustedPlayer(APawn* PlayerPawn)
 	{
 		return;
 	}
+    const AGCPlayerState* PlayerState = PC->GetPlayerState<AGCPlayerState>();
+    const int32 ArrestStars = PlayerState ? FMath::Max(1, PlayerState->WantedStars) : 1;
 	if (AGCPlayerState* PS = PC->GetPlayerState<AGCPlayerState>())
 	{
-		PS->SpendMoney(300 * FMath::Max(1, PS->WantedStars));
+		PS->SpendMoney(300 * ArrestStars);
 		PS->ClearWanted();
 	}
 	// Drop the player outside the nearest police station.
@@ -119,6 +132,7 @@ void AGCPedAIController::BustedPlayer(APawn* PlayerPawn)
 				break;
 			}
 		}
+        PlayerChar->BeginJailSentence(6.0f + 4.0f * ArrestStars);
 	}
 	ArrestProgress = 0.0f;
 }
@@ -143,17 +157,9 @@ void AGCPedAIController::UpdatePolice(float DeltaSeconds)
 	SetPedSpeed(Ped->RunSpeed);
 
 	const float Dist = FVector::Distance(Ped->GetActorLocation(), PlayerPawn->GetActorLocation());
-	const bool bLOS = HasLineOfSightTo(PlayerPawn);
 
-	// Lethal force at 3+ stars when in range and sight.
-	if (PS->WantedStars >= 3 && Dist < ShootRange && bLOS)
-	{
-		StopMovement();
-		Ped->FireAtActor(PlayerPawn);
-		ArrestProgress = 0.0f;
-		return;
-	}
-
+    // Police AI prioritizes an arrest over lethal force. The player can escape before
+    // officers close in; gunfire requires a separate, explicit defensive-force system.
 	MoveToActor(PlayerPawn, ArrestRange * 0.7f);
 
 	// Arrest only works on an on-foot, slow player at 1-2 stars.
@@ -172,6 +178,71 @@ void AGCPedAIController::UpdatePolice(float DeltaSeconds)
 	}
 }
 
+bool AGCPedAIController::RecoverFromStuck(float DeltaSeconds)
+{
+    if (!Ped || Ped->bDead || Ped->bKnockedDown || Ped->bIsPolice || GetMoveStatus() != EPathFollowingStatus::Moving)
+    {
+        StuckDuration = 0.0f;
+        StuckSampleTimer = 0.0f;
+        LastStuckSampleLocation = Ped ? Ped->GetActorLocation() : FVector::ZeroVector;
+        return false;
+    }
+
+    StuckSampleTimer += DeltaSeconds;
+    StuckDuration += DeltaSeconds;
+    const float SampleInterval = FMath::Max(0.1f, StuckSampleInterval);
+    if (StuckSampleTimer < SampleInterval)
+    {
+        return false;
+    }
+
+    const FVector CurrentLocation = Ped->GetActorLocation();
+    const float SampledDistance = FVector::Dist2D(CurrentLocation, LastStuckSampleLocation);
+    const float HorizontalSpeed = Ped->GetVelocity().Size2D();
+    LastStuckSampleLocation = CurrentLocation;
+    StuckSampleTimer = 0.0f;
+    if (HorizontalSpeed >= StuckSpeedThreshold || SampledDistance >= 45.0f)
+    {
+        StuckDuration = 0.0f;
+        return false;
+    }
+    if (StuckDuration < FMath::Max(0.5f, StuckRecoverySeconds))
+    {
+        return false;
+    }
+
+    StopMovement();
+    const FVector AwayDirection = (CurrentLocation - FleeFromLocation).GetSafeNormal2D();
+    const FVector PreferredCenter = State == EGCPedState::Flee && !AwayDirection.IsNearlyZero()
+        ? CurrentLocation + AwayDirection * 1300.0f : CurrentLocation;
+    bool bFoundRecoveryPoint = false;
+    for (int32 Attempt = 0; Attempt < 8; ++Attempt)
+    {
+        FVector Candidate = FVector::ZeroVector;
+        const float SearchRadius = Attempt < 4 ? 900.0f : 1800.0f;
+        if (!UNavigationSystemV1::K2_GetRandomReachablePointInRadius(GetWorld(), PreferredCenter, Candidate, SearchRadius))
+        {
+            continue;
+        }
+        if (FVector::Dist2D(Candidate, CurrentLocation) < 450.0f)
+        {
+            continue;
+        }
+        MoveToLocation(Candidate, 80.0f, true, true, true, true, nullptr, true);
+        bFoundRecoveryPoint = true;
+        break;
+    }
+
+    StuckDuration = 0.0f;
+    StuckSampleTimer = 0.0f;
+    LastStuckSampleLocation = CurrentLocation;
+    if (!bFoundRecoveryPoint && State == EGCPedState::Flee)
+    {
+        UpdateFlee();
+    }
+    return bFoundRecoveryPoint;
+}
+
 void AGCPedAIController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -180,6 +251,11 @@ void AGCPedAIController::Tick(float DeltaSeconds)
 		return;
 	}
 
+    if (Ped->bStoppedForPolice && !Ped->bIsPolice)
+    {
+        return;
+    }
+
 	if (Ped->bIsPolice)
 	{
 		Ped->MaybeSayAmbient();
@@ -187,6 +263,10 @@ void AGCPedAIController::Tick(float DeltaSeconds)
 		return;
 	}
 	Ped->MaybeSayAmbient();
+    if (RecoverFromStuck(DeltaSeconds))
+    {
+        return;
+    }
 
 	if (State == EGCPedState::Flee)
 	{

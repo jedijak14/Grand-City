@@ -4,11 +4,16 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/GCHealthComponent.h"
+#include "Components/GCClothPhysicsLibrary.h"
 #include "Components/GCParachuteComponent.h"
 #include "Components/GCWeaponComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Core/GCPlayerState.h"
+#include "Core/GCGameUserSettings.h"
+#include "Core/GCPlayerController.h"
+#include "Core/GCCrimeSystemSubsystem.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -26,6 +31,8 @@
 #include "Vehicle/GCVehiclePawn.h"
 #include "World/GCComputerTerminalActor.h"
 #include "World/GCRealEstateActor.h"
+#include "World/GCPropertyDoorActor.h"
+#include "World/GCPoliceRoadblockActor.h"
 #include "World/GCDeviceStoreActor.h"
 #include "World/GCBusStopActor.h"
 #include "Vehicle/GCBusPawn.h"
@@ -73,6 +80,10 @@ AGCCharacter::AGCCharacter()
 	HoodieMesh->SetupAttachment(GetMesh());
 	HairMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HairMesh"));
 	HairMesh->SetupAttachment(GetMesh());
+    OutfitMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("OutfitMesh"));
+    OutfitMesh->SetupAttachment(GetMesh());
+    OutfitMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    OutfitMesh->SetVisibility(false);
 
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	Move->MaxWalkSpeed = WalkSpeed;
@@ -106,21 +117,127 @@ void AGCCharacter::BeginPlay()
 	// Pose-lead the clothing attachments from the main body mesh.
 	HoodieMesh->SetLeaderPoseComponent(GetMesh());
 	HairMesh->SetLeaderPoseComponent(GetMesh());
+    OutfitMesh->SetLeaderPoseComponent(GetMesh());
 	RefreshClothAndHairVisibility();
+    RefreshOutfitForProfile();
 }
 
 void AGCCharacter::RefreshClothAndHairVisibility()
 {
-	const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
-	const bool bShow = !Settings || Settings->bClothAndHairPhysics;
-	if (HoodieMesh)
-	{
-		HoodieMesh->SetVisibility(bShow, false);
-	}
-	if (HairMesh)
-	{
-		HairMesh->SetVisibility(bShow, false);
-	}
+    const UGCGameUserSettings* Settings = UGCGameUserSettings::GetGCSettings();
+    const bool bEnableSimulation = !Settings || Settings->bClothAndHairPhysics;
+    // Do not hide the garment when the quality option is off: keep its skinned pose visible
+    // and only suspend the Chaos Cloth simulation to save CPU/GPU work.
+    UGCClothPhysicsLibrary::ApplyClothSimulation(this, bEnableSimulation, ClothMaxDistanceScale);
+}
+
+void AGCCharacter::RefreshOutfitForProfile()
+{
+    AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || OutfitPresets.IsEmpty())
+    {
+        return;
+    }
+    auto IsCompatible = [PlayerState](const FGCOutfitPreset& Preset)
+    {
+        const bool bSexCompatible = Preset.ApplicableSex == EGCCitizenSex::Unspecified
+            || Preset.ApplicableSex == PlayerState->CitizenSex;
+        const bool bHasVisual = Preset.BodyMesh || Preset.ClothingMesh;
+        return bSexCompatible && bHasVisual
+            && (Preset.Category != EGCOutfitCategory::Swimwear || Preset.bAppropriateCoverage);
+    };
+    const FName DesiredID = PlayerState->CurrentOutfitID;
+    if (!DesiredID.IsNone())
+    {
+        for (const FGCOutfitPreset& Preset : OutfitPresets)
+        {
+            if (Preset.OutfitID == DesiredID && IsCompatible(Preset) && SetOutfitByID(DesiredID))
+            {
+                return;
+            }
+        }
+    }
+    for (const FGCOutfitPreset& Preset : OutfitPresets)
+    {
+        if (Preset.bDefaultForSex && IsCompatible(Preset) && SetOutfitByID(Preset.OutfitID))
+        {
+            return;
+        }
+    }
+    for (const FGCOutfitPreset& Preset : OutfitPresets)
+    {
+        if (IsCompatible(Preset) && SetOutfitByID(Preset.OutfitID))
+        {
+            return;
+        }
+    }
+}
+
+bool AGCCharacter::SetOutfitByID(FName OutfitID)
+{
+    AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || OutfitID.IsNone())
+    {
+        return false;
+    }
+    const FGCOutfitPreset* Preset = OutfitPresets.FindByPredicate([OutfitID](const FGCOutfitPreset& Candidate)
+    {
+        return Candidate.OutfitID == OutfitID;
+    });
+    if (!Preset)
+    {
+        return false;
+    }
+    const bool bSexCompatible = Preset->ApplicableSex == EGCCitizenSex::Unspecified
+        || Preset->ApplicableSex == PlayerState->CitizenSex;
+    if (!bSexCompatible || (!Preset->BodyMesh && !Preset->ClothingMesh)
+        || (Preset->Category == EGCOutfitCategory::Swimwear && !Preset->bAppropriateCoverage))
+    {
+        return false;
+    }
+    if (Preset->BodyMesh && GetMesh())
+    {
+        GetMesh()->SetSkeletalMesh(Preset->BodyMesh);
+    }
+    if (OutfitMesh)
+    {
+        OutfitMesh->SetLeaderPoseComponent(GetMesh());
+        OutfitMesh->SetSkeletalMesh(Preset->ClothingMesh);
+        OutfitMesh->SetVisibility(Preset->ClothingMesh != nullptr);
+    }
+    RefreshClothAndHairVisibility();
+    CurrentOutfitID = Preset->OutfitID;
+    PlayerState->CurrentOutfitID = Preset->OutfitID;
+    PlayerState->RequestPersistentSave();
+    return true;
+}
+
+void AGCCharacter::CycleOutfit()
+{
+    if (OutfitPresets.IsEmpty())
+    {
+        ShowSubtitle(TEXT("No wardrobe presets are configured for this character."), 3.0f);
+        return;
+    }
+    int32 CurrentIndex = INDEX_NONE;
+    for (int32 Index = 0; Index < OutfitPresets.Num(); ++Index)
+    {
+        if (OutfitPresets[Index].OutfitID == CurrentOutfitID)
+        {
+            CurrentIndex = Index;
+            break;
+        }
+    }
+    for (int32 Offset = 1; Offset <= OutfitPresets.Num(); ++Offset)
+    {
+        const int32 CandidateIndex = (CurrentIndex + Offset + OutfitPresets.Num()) % OutfitPresets.Num();
+        if (SetOutfitByID(OutfitPresets[CandidateIndex].OutfitID))
+        {
+            ShowSubtitle(FString::Printf(TEXT("Outfit changed: %s."), *OutfitPresets[CandidateIndex].DisplayName.ToString()), 3.0f);
+            return;
+        }
+    }
+    ShowSubtitle(TEXT("No compatible outfit preset is available for this profile."), 3.0f);
 }
 
 void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -143,7 +260,8 @@ void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AGCCharacter::StartFire);
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Released, this, &AGCCharacter::StopFire);
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AGCCharacter::Reload);
-	PlayerInputComponent->BindAction(TEXT("Interact"), IE_Pressed, this, &AGCCharacter::Interact);
+	PlayerInputComponent->BindKey(EKeys::E, IE_Pressed, this, &AGCCharacter::OnInteractPressed);
+    PlayerInputComponent->BindKey(EKeys::E, IE_Released, this, &AGCCharacter::OnInteractReleased);
 	PlayerInputComponent->BindAction(TEXT("EnterVehicle"), IE_Pressed, this, &AGCCharacter::TryEnterVehicle);
 	PlayerInputComponent->BindAction(TEXT("DeployParachute"), IE_Pressed, this, &AGCCharacter::DeployParachute);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AGCCharacter::ToggleFirstPerson);
@@ -151,13 +269,21 @@ void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &AGCCharacter::CyclePaymentMethod);
 	PlayerInputComponent->BindKey(EKeys::K, IE_Pressed, this, &AGCCharacter::RepayCreditCard);
 	PlayerInputComponent->BindKey(EKeys::G, IE_Pressed, this, &AGCCharacter::TryPickpocket);
+    PlayerInputComponent->BindKey(EKeys::O, IE_Pressed, this, &AGCCharacter::CycleOutfit);
+    PlayerInputComponent->BindKey(EKeys::V, IE_Pressed, this, &AGCCharacter::SellCurrentProperty);
+    PlayerInputComponent->BindKey(EKeys::T, IE_Pressed, this, &AGCCharacter::PayCurrentPropertyTax);
+	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &AGCCharacter::MaintainCurrentProperty);
+    PlayerInputComponent->BindKey(EKeys::J, IE_Pressed, this, &AGCCharacter::AcceptCurrentJobOffer);
+    PlayerInputComponent->BindKey(EKeys::N, IE_Pressed, this, &AGCCharacter::DeclineCurrentJobOffer);
 
-	PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AGCCharacter::CycleComputerOffer);
+    // Tab is intentionally not used: E is tap-to-interact and hold-for-police-actions.
 	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AGCCharacter::CycleComputerClass);
+    PlayerInputComponent->BindKey(EKeys::C, IE_Pressed, this, &AGCCharacter::CycleComputerOffer);
 	PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGCCharacter::EquipPistol);
 	PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGCCharacter::EquipRifle);
 	PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AGCCharacter::EquipSMG);
 	PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AGCCharacter::EquipSniper);
+    PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AGCCharacter::EquipTaser);
 }
 
 void AGCCharacter::Tick(float DeltaSeconds)
@@ -289,8 +415,20 @@ void AGCCharacter::FireWeapon()
 		FRotator Control = Controller->GetControlRotation();
 		Control.Pitch = FMath::ClampAngle(Control.Pitch + Recoil, -89.0f, 89.0f);
 		Controller->SetControlRotation(Control);
-		// Gunfire in earshot of the world attracts attention. Witness checks refine this later.
-		ReportCrime(0); // marks "noise" only - stars are added by damage/witness systems
+        if (Weapon && Weapon->WeaponType != EGCWeaponType::Taser && !Weapon->bSuppressed)
+        {
+            if (UGCCrimeSystemSubsystem* CrimeSystem = GetWorld()->GetSubsystem<UGCCrimeSystemSubsystem>())
+            {
+                CrimeSystem->ReportCrime(this, GetActorLocation(), EGCCrimeType::UnlawfulGunfire,
+                    Weapon->UnsuppressedNoiseRadius);
+            }
+            if (AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>(); PlayerState && PlayerState->IsPoliceOnDuty())
+            {
+                PlayerState->ApplyConductPenalty(35);
+                PlayerState->AddWantedStars(2);
+                ShowSubtitle(TEXT("UNLAWFUL USE OF FIREARM: dispatch notified, conduct points deducted."), 5.0f);
+            }
+        }
 	}
 }
 
@@ -299,6 +437,17 @@ void AGCCharacter::EquipPistol() { Weapon->ConfigureForType(EGCWeaponType::Pisto
 void AGCCharacter::EquipRifle() { Weapon->ConfigureForType(EGCWeaponType::Rifle); }
 void AGCCharacter::EquipSMG() { Weapon->ConfigureForType(EGCWeaponType::SMG); }
 void AGCCharacter::EquipSniper() { Weapon->ConfigureForType(EGCWeaponType::Sniper); }
+void AGCCharacter::EquipTaser()
+{
+    const AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || !PlayerState->IsPoliceOnDuty())
+    {
+        ShowSubtitle(TEXT("The issued taser is only available while on police duty."));
+        return;
+    }
+    Weapon->ConfigureForType(EGCWeaponType::Taser);
+    ShowSubtitle(TEXT("Taser equipped. Use proportionately; the shot will knock down a pedestrian non-lethally."));
+}
 
 void AGCCharacter::DeployParachute()
 {
@@ -426,15 +575,247 @@ void AGCCharacter::Interact()
 		CurrentBusStop->Ride(this);
 		return;
 	}
+    if (CurrentPropertyDoor)
+    {
+        CurrentPropertyDoor->UseDoor(this);
+        return;
+    }
 	if (CurrentProperty)
 	{
 		CurrentProperty->Interact(this);
 		return;
 	}
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->InteractWithPlayer(this);
+        return;
+    }
+    if (CurrentTrafficVehicle)
+    {
+        if (const AGCPlayerState* PS = GetPlayerState<AGCPlayerState>(); PS && PS->IsPoliceOnDuty())
+        {
+            ShowSubtitle(FString::Printf(TEXT("Vehicle %s | plate %s | speed %.0f km/h. Press T to stop, B for breath test."),
+                *CurrentTrafficVehicle->DisplayName, *CurrentTrafficVehicle->LicensePlate, CurrentTrafficVehicle->GetSpeedKmh()), 5.0f);
+            return;
+        }
+    }
 	if (CurrentLocation)
 	{
 		CurrentLocation->Interact(this);
 	}
+}
+
+void AGCCharacter::AcceptCurrentJobOffer()
+{
+    if (CurrentLocation)
+    {
+        CurrentLocation->AcceptHiringOffer(this);
+    }
+}
+
+void AGCCharacter::DeclineCurrentJobOffer()
+{
+    if (CurrentLocation)
+    {
+        CurrentLocation->DeclineHiringOffer(this);
+    }
+}
+
+void AGCCharacter::SellCurrentProperty()
+{
+    if (CurrentProperty)
+    {
+        CurrentProperty->SellOwnedProperty(this);
+    }
+}
+
+void AGCCharacter::PayCurrentPropertyTax()
+{
+    if (CurrentTrafficVehicle)
+    {
+        CurrentTrafficVehicle->BeginTrafficStop(this);
+        return;
+    }
+    if (CurrentProperty)
+    {
+        CurrentProperty->PayPropertyTax(this);
+    }
+}
+
+void AGCCharacter::MaintainCurrentProperty()
+{
+    if (CurrentProperty)
+    {
+        CurrentProperty->MaintainOwnedProperty(this);
+    }
+}
+
+void AGCCharacter::RequestCitizenID()
+{
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->RequestIdentification(this);
+    }
+}
+
+void AGCCharacter::FriskCurrentCitizen()
+{
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->Frisk(this);
+    }
+}
+
+void AGCCharacter::SearchCurrentCitizen()
+{
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->SearchPersonAndBag(this);
+    }
+}
+
+void AGCCharacter::ArrestCurrentCitizen()
+{
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->Arrest(this);
+    }
+}
+
+void AGCCharacter::ReleaseCurrentCitizen()
+{
+    if (CurrentTrafficVehicle)
+    {
+        CurrentTrafficVehicle->ReleaseTrafficStop(this);
+    }
+    else if (CurrentPedestrian)
+    {
+        CurrentPedestrian->ReleaseFromPoliceStop(this);
+    }
+}
+
+void AGCCharacter::InterviewCurrentCitizen()
+{
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->InterviewAboutCrime(this);
+    }
+}
+
+void AGCCharacter::ShowPoliceContextActions()
+{
+    const AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || !PlayerState->IsPoliceOnDuty())
+    {
+        CycleComputerOffer();
+        return;
+    }
+    if (CurrentPedestrian)
+    {
+        ShowSubtitle(TEXT("OFFICER ACTIONS: E request ID | I verify ID | Q interview | F frisk | H search | X arrest | U release | N jaywalking | L littering | Y loitering"), 8.0f);
+    }
+    else if (CurrentTrafficVehicle)
+    {
+        ShowSubtitle(TEXT("TRAFFIC ACTIONS: E inspect vehicle | T traffic stop | B breathalyzer | N speeding citation | L equipment citation"), 7.0f);
+    }
+    else
+    {
+        ShowSubtitle(TEXT("No citizen or vehicle in interaction range."), 3.0f);
+    }
+}
+
+void AGCCharacter::IssueJaywalkingCitation()
+{
+    if (CurrentPedestrian) CurrentPedestrian->IssueCitation(this, EGCPoliceViolation::Jaywalking);
+    else if (CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::Speeding);
+}
+
+void AGCCharacter::IssueLitteringCitation()
+{
+    if (CurrentPedestrian) CurrentPedestrian->IssueCitation(this, EGCPoliceViolation::Littering);
+    else if (CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::BrokenTailLight);
+}
+
+void AGCCharacter::IssueLoiteringCitation()
+{
+    if (CurrentPedestrian) CurrentPedestrian->IssueCitation(this, EGCPoliceViolation::Loitering);
+    else if (CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::AgainstTraffic);
+}
+
+void AGCCharacter::DeployRoadblock()
+{
+    const AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || !PlayerState->IsPoliceOnDuty())
+    {
+        ShowSubtitle(TEXT("Only an on-duty police officer can deploy roadblocks."));
+        return;
+    }
+    const FVector Location = GetActorLocation() + GetActorForwardVector() * 520.0f;
+    const FRotator Rotation(0.0f, GetActorRotation().Yaw, 0.0f);
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+    if (AGCPoliceRoadblockActor* Roadblock = GetWorld()->SpawnActor<AGCPoliceRoadblockActor>(
+        AGCPoliceRoadblockActor::StaticClass(), Location, Rotation, Params))
+    {
+        Roadblock->DeployedByCitizenID = PlayerState->CitizenID;
+        ShowSubtitle(TEXT("Roadblock deployed. It will automatically clear after 15 minutes."), 4.0f);
+        const_cast<AGCPlayerState*>(PlayerState)->AwardShiftPoints(2);
+    }
+}
+
+void AGCCharacter::OnInteractPressed()
+{
+    const AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (PlayerState && PlayerState->IsPoliceOnDuty() && (CurrentPedestrian || CurrentTrafficVehicle))
+    {
+        bWaitingForContextHold = true;
+        GetWorldTimerManager().SetTimer(ContextWheelHoldTimer, this,
+            &AGCCharacter::OpenContextActionWheelAfterHold, 0.28f, false);
+        return;
+    }
+    Interact();
+}
+
+void AGCCharacter::OnInteractReleased()
+{
+    GetWorldTimerManager().ClearTimer(ContextWheelHoldTimer);
+    if (bContextWheelOpen)
+    {
+        if (AGCPlayerController* PC = Cast<AGCPlayerController>(GetController()))
+        {
+            PC->HidePoliceActionWheel();
+        }
+        bContextWheelOpen = false;
+        bWaitingForContextHold = false;
+        return;
+    }
+    if (bWaitingForContextHold)
+    {
+        bWaitingForContextHold = false;
+        Interact();
+    }
+}
+
+void AGCCharacter::OpenContextActionWheelAfterHold()
+{
+    if (!bWaitingForContextHold)
+    {
+        return;
+    }
+    const AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+    if (!PlayerState || !PlayerState->IsPoliceOnDuty() || (!CurrentPedestrian && !CurrentTrafficVehicle))
+    {
+        return;
+    }
+    if (CurrentPedestrian)
+    {
+        CurrentPedestrian->InitiatePoliceStop(this);
+    }
+    if (AGCPlayerController* PC = Cast<AGCPlayerController>(GetController()))
+    {
+        PC->ShowPoliceActionWheel(CurrentTrafficVehicle != nullptr);
+        bContextWheelOpen = true;
+    }
 }
 
 void AGCCharacter::CycleComputerOffer()
@@ -455,6 +836,11 @@ void AGCCharacter::CycleComputerOffer()
 
 void AGCCharacter::CycleComputerClass()
 {
+    if (CurrentTrafficVehicle)
+    {
+        CurrentTrafficVehicle->RunBreathalyzer(this);
+        return;
+    }
 	if (CurrentComputer)
 	{
 		CurrentComputer->CycleClass();
@@ -465,6 +851,65 @@ void AGCCharacter::ShowSubtitle(const FString& Text, float DurationSeconds)
 {
 	CurrentSubtitle = Text;
 	SubtitleExpiryTime = GetWorld() ? GetWorld()->GetTimeSeconds() + DurationSeconds : DurationSeconds;
+}
+
+void AGCCharacter::DispatchPoliceAction(FName ActionID)
+{
+    const FString Action = ActionID.ToString();
+    if (Action == TEXT("ID")) RequestCitizenID();
+    else if (Action == TEXT("INTERVIEW")) InterviewCurrentCitizen();
+    else if (Action == TEXT("ALCOHOL_TEST") && CurrentPedestrian) CurrentPedestrian->RunAlcoholTest(this);
+    else if (Action == TEXT("DRUG_TEST"))
+    {
+        if (CurrentPedestrian) CurrentPedestrian->RunDrugTest(this);
+        else if (CurrentTrafficVehicle) CurrentTrafficVehicle->RunDrugImpairmentTest(this);
+    }
+    else if (Action == TEXT("FAKE_ID") && CurrentPedestrian) CurrentPedestrian->IssueCitation(this, EGCPoliceViolation::FakeIdentification);
+    else if (Action == TEXT("EXPIRED_LICENSE") && CurrentPedestrian) CurrentPedestrian->IssueCitation(this, EGCPoliceViolation::ExpiredLicense);
+    else if (Action == TEXT("FRISK")) FriskCurrentCitizen();
+    else if (Action == TEXT("SEARCH")) SearchCurrentCitizen();
+    else if (Action == TEXT("ARREST")) ArrestCurrentCitizen();
+    else if (Action == TEXT("RELEASE")) ReleaseCurrentCitizen();
+    else if (Action == TEXT("JAYWALKING")) IssueJaywalkingCitation();
+    else if (Action == TEXT("LITTERING")) IssueLitteringCitation();
+    else if (Action == TEXT("LOITERING")) IssueLoiteringCitation();
+    else if (Action == TEXT("INSPECT")) Interact();
+    else if (Action == TEXT("TRAFFIC_STOP") && CurrentTrafficVehicle) CurrentTrafficVehicle->BeginTrafficStop(this);
+    else if (Action == TEXT("BREATH_TEST") && CurrentTrafficVehicle) CurrentTrafficVehicle->RunBreathalyzer(this);
+    else if (Action == TEXT("SPEEDING") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::Speeding);
+    else if (Action == TEXT("TAIL_LIGHT") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::BrokenTailLight);
+    else if (Action == TEXT("EXPIRED_METER") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::ExpiredMeter);
+    else if (Action == TEXT("HYDRANT") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::BlockingFireHydrant);
+    else if (Action == TEXT("WRONG_WAY") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::AgainstTraffic);
+    else if (Action == TEXT("SMOKE") && CurrentTrafficVehicle) CurrentTrafficVehicle->IssueTrafficCitation(this, EGCPoliceViolation::SmokeExhaust);
+}
+
+void AGCCharacter::BeginJailSentence(float DurationSeconds)
+{
+    if (!GetWorld() || bServingJailSentence)
+    {
+        return;
+    }
+    bServingJailSentence = true;
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        PC->SetIgnoreMoveInput(true);
+        PC->SetIgnoreLookInput(true);
+    }
+    ShowSubtitle(TEXT("You are in custody. Escape during the active pursuit to avoid arrest; otherwise serve your sentence."), DurationSeconds);
+    GetWorldTimerManager().SetTimer(JailSentenceTimer, this, &AGCCharacter::CompleteJailSentence,
+        FMath::Max(5.0f, DurationSeconds), false);
+}
+
+void AGCCharacter::CompleteJailSentence()
+{
+    bServingJailSentence = false;
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        PC->SetIgnoreMoveInput(false);
+        PC->SetIgnoreLookInput(false);
+    }
+    ShowSubtitle(TEXT("Sentence served. You are free to go."), 4.0f);
 }
 
 void AGCCharacter::TryEnterVehicle()
@@ -485,9 +930,9 @@ void AGCCharacter::TryEnterVehicle()
 	{
 		Boat->BeginEnter(this);
 	}
-	else if (AGCAirlinerPawn* Airliner = Cast<AGCAirlinerPawn>(NearestEnterable))
+	else if (NearestEnterable && NearestEnterable->IsA<AGCAirlinerPawn>())
 	{
-		Airliner->BoardPassenger(this);
+		ShowSubtitle(TEXT("Use the passenger jetway to board; the pass is checked automatically at the aircraft door."), 4.0f);
 	}
 	else if (AGCSurfboardPawn* Surf = Cast<AGCSurfboardPawn>(NearestEnterable))
 	{
@@ -498,6 +943,8 @@ void AGCCharacter::TryEnterVehicle()
 void AGCCharacter::ScanForInteractables()
 {
 	NearestEnterable = nullptr;
+    CurrentPedestrian = nullptr;
+    CurrentTrafficVehicle = nullptr;
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
@@ -507,8 +954,35 @@ void AGCCharacter::ScanForInteractables()
 		380.0f, ObjectTypes, false, Ignored, EDrawDebugTrace::None, Hits, true);
 
 	float BestDist = TNumericLimits<float>::Max();
+    float BestPedestrianDistance = 330.0f;
+    float BestTrafficDistance = 520.0f;
 	for (const FHitResult& Hit : Hits)
 	{
+        if (AGCPedestrian* Pedestrian = Cast<AGCPedestrian>(Hit.GetActor()))
+        {
+            if (Pedestrian->bDead || Pedestrian->bArrested)
+            {
+                continue;
+            }
+            const FVector ToPedestrian = Pedestrian->GetActorLocation() - GetActorLocation();
+            const float Distance = ToPedestrian.Size();
+            if (Distance > BestPedestrianDistance || FVector::DotProduct(GetActorForwardVector(), ToPedestrian.GetSafeNormal2D()) < 0.15f)
+            {
+                continue;
+            }
+            FHitResult SightHit;
+            FCollisionQueryParams SightParams(SCENE_QUERY_STAT(CitizenInteractionLOS), false, this);
+            const FVector SightStart = GetActorLocation() + FVector(0.0f, 0.0f, 125.0f);
+            const FVector SightEnd = Pedestrian->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+            const bool bBlocked = GetWorld()->LineTraceSingleByChannel(SightHit, SightStart, SightEnd, ECC_Visibility, SightParams)
+                && SightHit.GetActor() != Pedestrian;
+            if (!bBlocked)
+            {
+                BestPedestrianDistance = Distance;
+                CurrentPedestrian = Pedestrian;
+            }
+            continue;
+        }
 		APawn* Pawn = Cast<APawn>(Hit.GetActor());
 		if (!Pawn || Pawn == this)
 		{
@@ -517,6 +991,11 @@ void AGCCharacter::ScanForInteractables()
 		if (Pawn->IsA<AGCVehiclePawn>() || Pawn->IsA<AGCPlanePawn>() || Pawn->IsA<AGCBoatPawn>() || Pawn->IsA<AGCAirlinerPawn>() || Pawn->IsA<AGCSurfboardPawn>())
 		{
 			const float D = FVector::Distance(GetActorLocation(), Pawn->GetActorLocation());
+            if (AGCVehiclePawn* TrafficVehicle = Cast<AGCVehiclePawn>(Pawn); TrafficVehicle && D < BestTrafficDistance)
+            {
+                BestTrafficDistance = D;
+                CurrentTrafficVehicle = TrafficVehicle;
+            }
 			if (D < BestDist)
 			{
 				BestDist = D;
