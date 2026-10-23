@@ -1,5 +1,6 @@
 #include "World/GCElevatorActor.h"
 
+#include "Character/GCCharacter.h"
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Pawn.h"
@@ -87,10 +88,10 @@ void AGCElevatorActor::BeginPlay()
 	SetDoorAlpha(0.0f);
 }
 
-bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* DestinationLanding)
+bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* DestinationLanding, AGCCharacter* Passenger)
 {
-	const bool bBusy = State == EGCElevatorState::OpeningDoors || State == EGCElevatorState::Dwelling
-		|| State == EGCElevatorState::ClosingDoors || State == EGCElevatorState::Moving;
+	const bool bBusy = State == EGCElevatorState::OpeningDoors || State == EGCElevatorState::Boarding
+		|| State == EGCElevatorState::Dwelling || State == EGCElevatorState::ClosingDoors || State == EGCElevatorState::Moving;
 	if (!IsValid(CallerLanding) || !IsValid(DestinationLanding) || !GetWorld()
 		|| CallerLanding->GetWorld() != GetWorld() || DestinationLanding->GetWorld() != GetWorld()
 		|| FVector::DistSquared2D(CallerLanding->GetActorLocation(), GetActorLocation()) > FMath::Square(300.0f)
@@ -102,22 +103,31 @@ bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* Destinatio
 	}
 
 	RequestedFloor = DestinationLanding;
+	RequestedPassenger = Passenger;
 	BoardingFloorZ = CallerLanding->GetActorLocation().Z;
 	DestinationFloorZ = DestinationLanding->GetActorLocation().Z;
 	bGoingToPickupFloor = FMath::Abs(GetActorLocation().Z - BoardingFloorZ) > 5.0f;
-	TargetZ = bGoingToPickupFloor ? BoardingFloorZ : DestinationFloorZ;
+	bAtPickupFloor = !bGoingToPickupFloor;
+	TargetZ = BoardingFloorZ;
 
 	if (bGoingToPickupFloor)
 	{
-		// The car first travels to the caller. It opens there, boards, dwells, then serves the destination.
+		// The car travels to the caller first; the passenger must board before it serves the destination.
 		State = DoorAlpha > KINDA_SMALL_NUMBER
 			? EGCElevatorState::ClosingDoors : EGCElevatorState::Moving;
+		if (Passenger)
+		{
+			Passenger->ShowSubtitle(TEXT("Elevator called — it is on the way."), 4.0f);
+		}
 	}
 	else if (DoorAlpha > KINDA_SMALL_NUMBER)
 	{
-		// The car is already here with doors open; start the configured boarding dwell.
-		DwellRemaining = FMath::Clamp(DoorDwellSeconds, 1.0f, 8.0f);
-		State = EGCElevatorState::Dwelling;
+		BoardingRemaining = FMath::Clamp(BoardingTimeoutSeconds, 5.0f, 60.0f);
+		State = EGCElevatorState::Boarding;
+		if (Passenger)
+		{
+			Passenger->ShowSubtitle(TEXT("Elevator is here — step inside to ride."), 4.0f);
+		}
 	}
 	else
 	{
@@ -125,6 +135,19 @@ bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* Destinatio
 	}
 	SetActorTickEnabled(true);
 	return true;
+}
+
+bool AGCElevatorActor::IsPassengerInsideCabin(const AGCCharacter* Passenger) const
+{
+	if (!Passenger)
+	{
+		return false;
+	}
+
+	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Passenger->GetActorLocation());
+	return FMath::Abs(LocalPosition.X) <= 32.0f
+		&& LocalPosition.Y >= -32.0f && LocalPosition.Y <= 20.0f
+		&& LocalPosition.Z >= 45.0f && LocalPosition.Z <= 220.0f;
 }
 
 void AGCElevatorActor::SetDoorAlpha(float NewAlpha)
@@ -155,8 +178,18 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 		if (DoorAlpha >= 0.999f)
 		{
 			SetDoorAlpha(1.0f);
-			if (RequestedFloor.IsValid() && FMath::Abs(TargetZ - GetActorLocation().Z) > 5.0f)
+			if (bAtPickupFloor && RequestedFloor.IsValid())
 			{
+				BoardingRemaining = FMath::Clamp(BoardingTimeoutSeconds, 5.0f, 60.0f);
+				State = EGCElevatorState::Boarding;
+				if (AGCCharacter* Passenger = RequestedPassenger.Get())
+				{
+					Passenger->ShowSubtitle(TEXT("Elevator is here — step inside to ride."), 4.0f);
+				}
+			}
+			else if (bGoingToPickupFloor && RequestedFloor.IsValid())
+			{
+				// A safety reopen at the remote floor must not discard the active pickup request.
 				DwellRemaining = FMath::Clamp(DoorDwellSeconds, 1.0f, 8.0f);
 				State = EGCElevatorState::Dwelling;
 			}
@@ -164,9 +197,36 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 			{
 				State = EGCElevatorState::Idle;
 				RequestedFloor.Reset();
+				RequestedPassenger.Reset();
 			}
 		}
 		break;
+
+	case EGCElevatorState::Boarding:
+	{
+		AGCCharacter* Passenger = RequestedPassenger.Get();
+		if (Passenger && IsPassengerInsideCabin(Passenger))
+		{
+			TargetZ = DestinationFloorZ;
+			DwellRemaining = FMath::Clamp(DoorDwellSeconds, 1.0f, 8.0f);
+			State = EGCElevatorState::Dwelling;
+		}
+		else
+		{
+			BoardingRemaining -= SafeDelta;
+			if (BoardingRemaining <= 0.0f)
+			{
+				State = EGCElevatorState::Idle;
+				RequestedFloor.Reset();
+				RequestedPassenger.Reset();
+				if (Passenger)
+				{
+					Passenger->ShowSubtitle(TEXT("Boarding timed out. The elevator will wait here."), 4.0f);
+				}
+			}
+		}
+		break;
+	}
 
 	case EGCElevatorState::Dwelling:
 		DwellRemaining -= SafeDelta;
@@ -214,7 +274,12 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 			if (bGoingToPickupFloor)
 			{
 				bGoingToPickupFloor = false;
-				TargetZ = DestinationFloorZ;
+				bAtPickupFloor = true;
+				TargetZ = BoardingFloorZ;
+			}
+			else
+			{
+				bAtPickupFloor = false;
 			}
 			State = EGCElevatorState::OpeningDoors;
 		}

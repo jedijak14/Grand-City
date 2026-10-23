@@ -1,12 +1,13 @@
 # Moving elevator prototype
 
 `AGCElevatorActor` is a one-car/one-shaft lift. Two `GCLocationActor` landing stations share the
-car and point at each other; pressing the interaction key calls the lift. Split doors open at the
-caller, hold for a configurable boarding window, close, then the car moves vertically to the other
-landing. Its collision floor is a movable component so grounded characters can ride it; split
-doors animate on the car, and an overlap sensor reopens them if a pawn obstructs closing. If the car
-is on the other floor, it first travels to the caller, opens for boarding, then serves the linked
-destination. The starter-map builder creates a lobby/roof pair and an open guide-post shaft.
+car and point at each other; pressing the interaction key calls the lift and associates the caller
+with that trip. If needed, the car first travels to the caller. It opens its split doors and waits
+for that player to physically enter the cabin before starting the dwell, closing, and travelling to
+the linked destination. A bounded boarding timeout leaves the car safely open if the caller does
+not board. Its collision floor is a movable component so grounded characters can ride it; split
+doors animate on the car, and an overlap sensor reopens them if a pawn obstructs closing. The
+starter-map builder creates a lobby/roof pair and an open guide-post shaft.
 
 This is a functional prototype, not production elevator engineering or finished architectural art.
 UE compilation and gameplay tests must confirm moving-base carry, overlap ordering at landings,

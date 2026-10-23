@@ -204,7 +204,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 	case EGCLocationType::SkyscraperElevator:
 		if (ElevatorActor && TeleportDestination)
 		{
-			if (!ElevatorActor->CallFromLanding(this, TeleportDestination))
+			if (!ElevatorActor->CallFromLanding(this, TeleportDestination, Character))
 			{
 				Character->ShowSubtitle(TEXT("Elevator is moving or the destination is unavailable."), 3.0f);
 			}
