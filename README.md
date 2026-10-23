@@ -16,6 +16,8 @@ free high-poly models you drop in.
 
 ## 1. Build it
 
+For Windows users, the GitHub Releases page provides `Gridlock-Workspace-Setup.exe`. It detects Unreal Engine 5.4, extracts the complete source into a new `Gridlock` workspace, and can launch the editor. This is an Unreal source-project setup utility, **not a standalone game installer**. The first release workflow build must complete before the executable appears as a release asset.
+
 Requirements: Windows 10/11, **Unreal Engine 5.4**, **Visual Studio 2022** with
 “Game development with C++” + “Desktop development with C++” workloads.
 
