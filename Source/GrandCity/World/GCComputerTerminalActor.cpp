@@ -5,6 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCPlayerState.h"
+#include "Core/GCPlayerController.h"
 #include "GameFramework/PlayerController.h"
 
 AGCComputerTerminalActor::AGCComputerTerminalActor()
@@ -45,12 +46,13 @@ void AGCComputerTerminalActor::BeginPlay()
 
 void AGCComputerTerminalActor::GenerateDefaultOffers()
 {
-	const float Hours[3] = { 8.5f, 12.75f, 18.25f };
+	const float Hours[3] = { 8.5f, 13.25f, 18.75f };
+    const TCHAR* FlightNumbers[3] = { TEXT("CW 410"), TEXT("CW 628"), TEXT("CW 852") };
 	for (int32 i = 0; i < 3; ++i)
 	{
 		FGCFlightOffer Offer;
 		Offer.Airline = AirlineName;
-		Offer.FlightNumber = FString::Printf(TEXT("GC%d"), 101 + i * 2);
+		Offer.FlightNumber = FlightNumbers[i];
 		Offer.ToCode = DestinationCode;
 		Offer.ToCity = DestinationCity;
 		Offer.DepartureHour = Hours[i];
@@ -141,17 +143,20 @@ FString AGCComputerTerminalActor::GetScreenText(AGCCharacter* Character) const
 				if (PS->HasActiveTicket())
 				{
 					const FGCFlightTicket& T = PS->ActiveTicket;
-					Text += FString::Printf(TEXT("\n--- YOUR TICKET %s ---\n%s  %s -> %s  dep %s\nStatus: %s   Seat: %s   Gate: %s\n"),
-						*T.TicketID, *T.FlightNumber, *T.FromCode, *T.ToCode, *HourToText(T.DepartureHour),
-						T.Status == EGCTicketStatus::Booked ? TEXT("BOOKED - press E to CHECK IN")
-							: (T.Status == EGCTicketStatus::CheckedIn ? TEXT("CHECKED IN - go to the airliner and press F") : TEXT("USED")),
-						T.Seat.IsEmpty() ? TEXT("(at check-in)") : *T.Seat, *T.Gate);
+					Text += FString::Printf(TEXT("\n--- BOARDING PASS / %s ---\nPassenger: %s  Booking ref: %s\n%s  %s (%s) -> %s (%s)\nDate: %s  Depart: %s  Board: %s\nTerminal: %s  Gate: %s  Group: %d\nSeat: %s  Class: %s  Fare: $%d\nStatus: %s  Barcode: %s\n"),
+                        *T.Airline, *T.PassengerName, *T.BookingReference, *T.FlightNumber, *T.FromCity, *T.FromCode,
+                        *T.ToCity, *T.ToCode, *T.FlightDateUtc.ToString(TEXT("%Y-%m-%d")), *HourToText(T.DepartureHour),
+                        *T.BoardingTime, *T.Terminal, *T.Gate, T.BoardingGroup,
+                        T.Seat.IsEmpty() ? TEXT("(check in first)") : *T.Seat, *ClassName(T.SeatClass), T.PricePaid,
+                        T.Status == EGCTicketStatus::Booked ? TEXT("BOOKED - check in at counter")
+                            : (T.Status == EGCTicketStatus::CheckedIn ? TEXT("CHECKED IN - walk through the jetway") : TEXT("USED")),
+                        *T.BarcodePayload);
 				}
 			}
 		}
 	}
 
-	Text += TEXT("\n[Tab] flight   [B] class   [E] book / check in");
+	Text += TEXT("\n[C] flight   [B] class   [E] book / check in");
 	return Text;
 }
 
@@ -176,7 +181,10 @@ bool AGCComputerTerminalActor::BookFlight(AGCCharacter* Character, FGCFlightTick
 	}
 
 	const FGCFlightOffer& O = Offers[SelectedOfferIndex];
-	OutTicket.TicketID = FString::Printf(TEXT("GC-%06d"), FMath::RandRange(100000, 999999));
+	OutTicket.TicketID = FString::Printf(TEXT("CW-%06d"), FMath::RandRange(100000, 999999));
+    OutTicket.BookingReference = FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(6).ToUpper();
+    OutTicket.PassengerName = PS->CitizenName.IsEmpty() ? TEXT("Guest Passenger") : PS->CitizenName;
+    OutTicket.PassengerID = PS->CitizenID;
 	OutTicket.Airline = O.Airline;
 	OutTicket.FlightNumber = O.FlightNumber;
 	OutTicket.FromCode = AirportCode;
@@ -189,9 +197,15 @@ bool AGCComputerTerminalActor::BookFlight(AGCCharacter* Character, FGCFlightTick
 	OutTicket.Status = EGCTicketStatus::Booked;
 	OutTicket.PricePaid = Price;
 	OutTicket.DepartureHour = O.DepartureHour;
+    OutTicket.FlightDateUtc = FDateTime::UtcNow().GetDate();
+    OutTicket.Terminal = TEXT("1");
+    OutTicket.BoardingTime = HourToText(FMath::Fmod(O.DepartureHour + 23.5f, 24.0f));
+    OutTicket.DurationMinutes = O.DurationMinutes;
+    OutTicket.ArrivalTime = HourToText(FMath::Fmod(O.DepartureHour + static_cast<float>(O.DurationMinutes) / 60.0f, 24.0f));
+    OutTicket.BarcodePayload = FString::Printf(TEXT("%s|%s|%s"), *OutTicket.TicketID, *PS->CitizenID, *OutTicket.FlightNumber);
 
 	PS->SetTicket(OutTicket);
-	Speak(Character, TEXT("BookingConfirmed"), TEXT("You're booked! Shall I check you in now? Press E and I'll print your boarding pass with your seat and gate."));
+	Speak(Character, TEXT("BookingConfirmed"), TEXT("You're booked! Check in here to get your assigned seat, group, gate and boarding time. Your pass will be saved to your phone; use F7 for a paper copy."));
 	return true;
 }
 
@@ -224,11 +238,19 @@ bool AGCComputerTerminalActor::CheckIn(AGCCharacter* Character)
 		: (Ticket.SeatClass == EGCSeatClass::Business ? FMath::RandRange(5, 10) : FMath::RandRange(11, 38));
 	const TCHAR Letters[] = TEXT("ABCDEF");
 	Ticket.Seat = FString::Printf(TEXT("%d%c"), Row, Letters[FMath::RandRange(0, 5)]);
+    Ticket.PassengerName = PS->CitizenName.IsEmpty() ? TEXT("Guest Passenger") : PS->CitizenName;
+    Ticket.PassengerID = PS->CitizenID;
+    Ticket.BarcodePayload = FString::Printf(TEXT("%s|%s|%s|%s"), *Ticket.TicketID, *PS->CitizenID, *Ticket.FlightNumber, *Ticket.Seat);
 	Ticket.Status = EGCTicketStatus::CheckedIn;
 	PS->SetTicket(Ticket);
+    if (AGCPlayerController* GCController = Cast<AGCPlayerController>(PC))
+    {
+        GCController->ShowBoardingPass(false);
+    }
 
 	Speak(Character, TEXT("CheckInComplete"),
-		FString::Printf(TEXT("All checked in! Seat %s, gate %s. Have a great flight — boarding at the aircraft whenever you're ready."), *Ticket.Seat, *Ticket.Gate));
+		FString::Printf(TEXT("Checked in, %s. Seat %s, gate %s, group %d. Your mobile pass is ready; press F7 for a paper copy."),
+            *Ticket.PassengerName, *Ticket.Seat, *Ticket.Gate, Ticket.BoardingGroup));
 	return true;
 }
 
@@ -257,7 +279,7 @@ void AGCComputerTerminalActor::UseComputer(AGCCharacter* Character)
 	else if (PS->ActiveTicket.Status == EGCTicketStatus::CheckedIn)
 	{
 		Speak(Character, TEXT("GateAnnouncement"),
-			FString::Printf(TEXT("Flight %s to %s is boarding at gate %s. Walk to the aircraft and press F to board."),
+			FString::Printf(TEXT("Flight %s to %s is boarding at gate %s. Follow the jetway; boarding is checked automatically at the aircraft door."),
 				*PS->ActiveTicket.FlightNumber, *PS->ActiveTicket.ToCity, *PS->ActiveTicket.Gate));
 	}
 }
@@ -269,7 +291,7 @@ void AGCComputerTerminalActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, A
 	{
 		Character->SetCurrentComputer(this);
 		Speak(Character, TEXT("CheckInGreeting"),
-			TEXT("Hello, and welcome to Gridline Air! I can book your flight and check you in right here — the screen shows today's departures."));
+			TEXT("Welcome to Coastline Airways. I can book your flight and check you in here; today's departures are on the screen."));
 	}
 }
 

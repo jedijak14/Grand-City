@@ -50,6 +50,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice", meta = (ClampMin = "0.0", ClampMax = "2.0"))
 	float Volume = 1.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice", meta = (ClampMin = "0.5", ClampMax = "1.5"))
+    float PitchMultiplier = 1.0f;
+
 	UPROPERTY(BlueprintAssignable, Category = "Voice")
 	FGCOnVoiceSubtitle OnSubtitle;
 

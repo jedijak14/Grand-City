@@ -27,6 +27,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bus|Route", meta = (ClampMin = "1.0", ClampMax = "30.0"))
 	float StopDwellSeconds = 7.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bus|Route", meta = (ClampMin = "5.0", ClampMax = "80.0"))
+    float RouteCruiseKmh = 38.0f;
+
+    UFUNCTION(BlueprintCallable, Category = "Bus|Route")
+    float GetEstimatedArrivalSeconds(AGCBusStopActor* Stop) const;
+
 	UFUNCTION(BlueprintCallable, Category = "Bus")
 	bool BoardPassenger(AGCCharacter* Character, AGCBusStopActor* DestinationStop, int32 Fare);
 
@@ -42,4 +48,5 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AGCBusStopActor> PassengerDestination = nullptr;
+    int32 CurrentRouteTargetIndex = 0;
 };

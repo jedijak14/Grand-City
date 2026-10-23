@@ -44,6 +44,23 @@ void AGCHUD::DrawHUD()
 		DrawText(FString::Printf(TEXT("WANTED  %d / 5"), State->WantedStars),
 			State->WantedStars > 0 ? FColor::Red : FColor::White, Left, Top, Font, 1.0f);
 		Top += LineHeight;
+        if (!State->PrimaryResidenceID.IsEmpty())
+        {
+            DrawText(FString::Printf(TEXT("HOME  %s"), *State->CurrentAddress), FColor(178, 220, 195), Left, Top, Font, 0.85f);
+            Top += LineHeight;
+        }
+        if (State->CurrentJob == EGCJob::Police)
+        {
+            const FColor ConductColor = State->ConductPoints <= 25 ? FColor::Red
+                : (State->ConductPoints <= 60 ? FColor(255, 190, 70) : FColor(100, 220, 150));
+            DrawText(FString::Printf(TEXT("BADGE  %s  |  %s"), *State->PoliceBadgeNumber, *State->CitizenName),
+                FColor(174, 207, 255), Left, Top, Font, 0.9f);
+            Top += LineHeight;
+            DrawText(FString::Printf(TEXT("POLICE SHIFT  CP %d  /  SP %d%s"), State->ConductPoints, State->ShiftPoints,
+                State->bPoliceShiftFailed ? TEXT("  SHIFT FAILED") : (State->bPoliceShiftActive ? TEXT("  ON DUTY") : TEXT("  OFF DUTY"))),
+                ConductColor, Left, Top, Font, 0.95f);
+            Top += LineHeight;
+        }
 	}
 
 	const APawn* Pawn = PlayerOwner->GetPawn();
@@ -58,6 +75,30 @@ void AGCHUD::DrawHUD()
 		DrawText(FString::Printf(TEXT("%3.0f km/h   GEAR %d"), Vehicle->GetSpeedKmh(), Vehicle->CurrentGear),
 			FColor::White, Left, Top, Font, 1.0f);
 		Top += LineHeight;
+
+        const bool bEngineWarning = Vehicle->EngineTemperatureC >= Vehicle->EngineOverheatTemperatureC;
+        const FColor EngineColor = Vehicle->bEngineStalled ? FColor::Red
+            : (bEngineWarning ? FColor(255, 170, 55) : FColor(155, 220, 185));
+        DrawText(FString::Printf(TEXT("ENGINE  %3.0f C  RAD %d%%"), Vehicle->EngineTemperatureC,
+            FMath::RoundToInt(Vehicle->RadiatorIntegrity * 100.0f)), EngineColor, Left, Top, Font, 0.9f);
+        Top += LineHeight;
+        if (Vehicle->bEngineStalled)
+        {
+            DrawText(TEXT("ENGINE STALLED — LET IT COOL"), FColor::Red, Left, Top, Font, 0.95f);
+            Top += LineHeight;
+        }
+        for (int32 WheelIndex = 0; WheelIndex < Vehicle->TireConditions.Num(); ++WheelIndex)
+        {
+            const FGCVehicleTireCondition& Tire = Vehicle->TireConditions[WheelIndex];
+            if (Tire.bPunctured || Tire.Integrity < 0.55f)
+            {
+                DrawText(FString::Printf(TEXT("TIRE %d  %s  %d%% GRIP"), WheelIndex + 1,
+                    Tire.bPunctured ? TEXT("PUNCTURE") : TEXT("DAMAGED"),
+                    FMath::RoundToInt(Tire.GripScale * 100.0f)),
+                    Tire.bPunctured ? FColor::Red : FColor(255, 170, 55), Left, Top, Font, 0.9f);
+                Top += LineHeight;
+            }
+        }
 	}
 
 	if (Health)

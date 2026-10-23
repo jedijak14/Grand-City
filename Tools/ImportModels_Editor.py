@@ -7,6 +7,7 @@ PROJECT_DIR = Path(unreal.Paths.project_dir())
 ASSET_GROUPS = (
     (PROJECT_DIR / "ModelLibrary" / "PublicGLB", "/Game/GrandCity/Models", {".glb", ".gltf", ".fbx"}),
     (PROJECT_DIR / "ModelLibrary" / "SketchfabDropIn", "/Game/GrandCity/Imported", {".glb", ".gltf", ".fbx"}),
+    (PROJECT_DIR / "ModelLibrary" / "Clothing", "/Game/Gridlock/Characters/Clothing", {".glb", ".gltf", ".fbx"}),
     (PROJECT_DIR / "AudioSFX", "/Game/Audio/SFX", {".wav"}),
     (PROJECT_DIR / "AudioVoice", "/Game/Audio/Voice", {".wav"}),
 )

@@ -15,9 +15,9 @@ class AGCCharacter;
  * Airport computer / check-in desk.
  *
  * Flow (all in C++, screen drawn by the HUD today, UMG later):
- *   Walk up -> check-in agent greets you (voice line) -> [Tab] pick flight,
- *   [B] pick class, [E] book  ->  [E] again to check in (seat + gate assigned,
- *   boarding pass in your PlayerState wallet)  ->  walk to the airliner, [F] board.
+ *   Walk up -> check-in agent greets you -> [C] pick flight, [B] pick class,
+ *   [E] book/check in -> phone boarding pass (F8) or printed paper pass (F7)
+ *   -> walk through the jetway; the aircraft boards you at the door.
  * Staff voice = GCVoiceLineComponent ("CheckInGreeting", "CheckInComplete", ...).
  * Place a BP pedestrian behind the desk at StaffSeat for a visible agent.
  */
@@ -60,7 +60,7 @@ public:
 	FString DestinationCity = TEXT("North Island");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Airport")
-	FString AirlineName = TEXT("Gridline Air");
+	FString AirlineName = TEXT("Coastline Airways");
 
 	/** Leave empty to auto-generate a small schedule in BeginPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Flights")

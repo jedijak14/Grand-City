@@ -59,6 +59,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
 	USoundBase* FireSound = nullptr;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Stealth")
+    bool bSuppressed = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Stealth", meta = (ClampMin = "0.0"))
+    float UnsuppressedNoiseRadius = 8000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Stealth")
+    TObjectPtr<USoundBase> SuppressedFireSound = nullptr;
+
 	/** Debug tracer line while developing (replace with a Niagara beam later). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
 	bool bDrawDebugTracer = true;

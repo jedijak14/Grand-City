@@ -44,6 +44,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Location")
 	FText InteractionText;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Location|Jobs")
+    bool bHiringAvailable = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Location|Jobs")
+    bool bUseRandomHiring = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Location|Jobs")
+    EGCJob HiringJob = EGCJob::Civilian;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Location|Jobs")
+    bool bJobOfferPrompted = false;
+
+    void AcceptHiringOffer(AGCCharacter* Character);
+    void DeclineHiringOffer(AGCCharacter* Character);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Location|Shop")
 	int32 RobRewardMin = 400;
 

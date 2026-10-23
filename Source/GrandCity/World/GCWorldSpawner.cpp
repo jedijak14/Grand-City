@@ -122,6 +122,21 @@ void AGCWorldSpawner::SpawnTrafficCar(const FVector& PlayerLocation)
 	{
 		return;
 	}
+    // Low-frequency, actionable impaired-driving incidents in ambient traffic.
+    const float ImpairmentRoll = FMath::FRand();
+    if (ImpairmentRoll < 0.025f)
+    {
+        Car->bDriverImpaired = true;
+        Car->bDriverSlurredSpeech = true;
+        Car->bDriverUnsteadyGait = true;
+    }
+    else if (ImpairmentRoll < 0.045f)
+    {
+        Car->bDriverDrugImpaired = true;
+        Car->bDriverUnsteadyGait = true;
+    }
+    if (FMath::FRand() < 0.025f) Car->bTailLightsFunctional = false;
+    if (FMath::FRand() < 0.02f) Car->bSmokingExhaust = true;
 	if (AGCVehicleAIController* AI = GetWorld()->SpawnActor<AGCVehicleAIController>())
 	{
 		AI->Possess(Car);

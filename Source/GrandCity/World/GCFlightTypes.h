@@ -39,10 +39,10 @@ struct FGCFlightOffer
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Airline = TEXT("Gridline Air");
+	FString Airline = TEXT("Coastline Airways");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString FlightNumber = TEXT("GC100");
+	FString FlightNumber = TEXT("CW 410");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString ToCode = TEXT("NRT");
@@ -67,49 +67,76 @@ struct FGCFlightTicket
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString TicketID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString PassengerName = TEXT("PLAYER / GUEST");
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Airline = TEXT("Gridline Air");
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString PassengerID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString FlightNumber = TEXT("GC100");
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+	FString Airline = TEXT("Coastline Airways");
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+	FString FlightNumber = TEXT("CW 410");
+
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString FromCode;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString ToCode;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString FromCity;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString ToCity;
 
 	/** Assigned at check-in, e.g. "14A". */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString Seat;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	FString Gate = TEXT("A3");
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	int32 BoardingGroup = 2;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	EGCSeatClass SeatClass = EGCSeatClass::Economy;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	EGCTicketStatus Status = EGCTicketStatus::None;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	int32 PricePaid = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
 	float DepartureHour = 12.0f;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString ArrivalTime;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    int32 DurationMinutes = 55;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FDateTime FlightDateUtc;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString BoardingTime;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString Terminal = TEXT("1");
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString BookingReference;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    FString BarcodePayload;
+
+    UPROPERTY(SaveGame, EditAnywhere, BlueprintReadWrite)
+    bool bPaperCopyPrinted = false;
 };

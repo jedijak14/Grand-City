@@ -5,10 +5,13 @@
 #include "Components/GCHealthComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCPlayerState.h"
+#include "Core/GCPlayerController.h"
+#include "Core/GCCrimeSystemSubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Vehicle/GCBoatPawn.h"
+#include "Vehicle/GCVehiclePawn.h"
 #include "World/GCComputerTerminalActor.h"
 #include "World/GCElevatorActor.h"
 
@@ -36,6 +39,22 @@ void AGCLocationActor::BeginPlay()
 {
 	Super::BeginPlay();
 	ApplyDefaultTexts();
+    if (bUseRandomHiring && (LocationType == EGCLocationType::Shop || LocationType == EGCLocationType::PoliceStation))
+    {
+        bHiringAvailable = FMath::FRand() < (LocationType == EGCLocationType::PoliceStation ? 0.45f : 0.28f);
+        if (bHiringAvailable)
+        {
+            if (LocationType == EGCLocationType::PoliceStation)
+            {
+                HiringJob = FMath::RandBool() ? EGCJob::Police : EGCJob::BorderPatrol;
+            }
+            else
+            {
+                const int32 JobRoll = FMath::RandRange(0, 2);
+                HiringJob = JobRoll == 0 ? EGCJob::ShopOwner : (JobRoll == 1 ? EGCJob::Taxi : EGCJob::Medic);
+            }
+        }
+    }
 	Trigger->OnComponentBeginOverlap.AddDynamic(this, &AGCLocationActor::OnTriggerBegin);
 	Trigger->OnComponentEndOverlap.AddDynamic(this, &AGCLocationActor::OnTriggerEnd);
 }
@@ -84,7 +103,7 @@ void AGCLocationActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, AActor* O
 	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
 	{
 		Character->SetCurrentLocation(this);
-		const FString Prompt = FString::Printf(TEXT("%s — Press F: %s"),
+		const FString Prompt = FString::Printf(TEXT("%s — Press E: %s"),
 			*DisplayName.ToString(), *InteractionText.ToString());
 		Character->ShowSubtitle(Prompt, 4.0f);
 	}
@@ -109,6 +128,15 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 	}
 	APlayerController* PC = Cast<APlayerController>(Character->GetController());
 	AGCPlayerState* PS = PC ? PC->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (bHiringAvailable)
+    {
+        bJobOfferPrompted = true;
+        const FText JobName = StaticEnum<EGCJob>()
+            ? StaticEnum<EGCJob>()->GetDisplayNameTextByValue(static_cast<int64>(HiringJob))
+            : FText::FromString(TEXT("available position"));
+        Character->ShowSubtitle(FString::Printf(TEXT("HIRING: %s. Choose “I'm here about the job” [J] to apply, or [N] to decline."), *JobName.ToString()), 7.0f);
+        return;
+    }
 
 	switch (LocationType)
 	{
@@ -146,29 +174,9 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		{
 			PS->AddMoney(Reward);
 		}
-		TArray<AActor*> Nearby;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGCPedestrian::StaticClass(), Nearby);
-		bool bWitnessed = false;
-		bool bScreamPlayed = false;
-		int32 WitnessStars = 1;
-		for (AActor* Actor : Nearby)
-		{
-			AGCPedestrian* Ped = Cast<AGCPedestrian>(Actor);
-			if (!Ped || FVector::Distance(Ped->GetActorLocation(), GetActorLocation()) > 2000.0f
-				|| !Ped->CanWitnessCrimeAt(GetActorLocation()))
-			{
-				continue;
-			}
-			bWitnessed = true;
-			WitnessStars = FMath::Max(WitnessStars, Ped->bIsPolice ? 2 : 1);
-			const bool bPlayScream = !Ped->bIsPolice && !bScreamPlayed;
-			Ped->ReactToWitnessedCrime(Character->GetActorLocation(), bPlayScream);
-			bScreamPlayed |= bPlayScream;
-		}
-		if (PS && bWitnessed)
-		{
-			PS->AddWantedStars(WitnessStars);
-		}
+        const bool bWitnessed = GetWorld()->GetSubsystem<UGCCrimeSystemSubsystem>()
+            ? GetWorld()->GetSubsystem<UGCCrimeSystemSubsystem>()->ReportCrime(Character, GetActorLocation(), EGCCrimeType::StoreRobbery)
+            : false;
 		Character->ShowSubtitle(FString::Printf(TEXT("Robbery: +$%d. %s"), Reward,
 			bWitnessed ? TEXT("A witness raised the alarm.") : TEXT("No witness saw you.")), 4.0f);
 		break;
@@ -204,7 +212,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		if (bHasComputers)
 		{
 			Character->ShowSubtitle(PS && PS->HasActiveTicket() && PS->ActiveTicket.Status == EGCTicketStatus::CheckedIn
-				? TEXT("You're checked in — head to the aircraft at the gate and press F to board.")
+				? TEXT("You're checked in — follow the jetway to the aircraft; your pass will be checked at the door.")
 				: TEXT("Use the check-in computers in the terminal to book and check in."), 5.0f);
 			break;
 		}
@@ -282,4 +290,60 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		}
 		break;
 	}
+}
+
+void AGCLocationActor::AcceptHiringOffer(AGCCharacter* Character)
+{
+    if (!Character || !bHiringAvailable || !bJobOfferPrompted)
+    {
+        return;
+    }
+    AGCPlayerController* PC = Cast<AGCPlayerController>(Character->GetController());
+    AGCPlayerState* PS = PC ? PC->GetPlayerState<AGCPlayerState>() : nullptr;
+    if (!PS)
+    {
+        Character->ShowSubtitle(TEXT("The employer cannot process your profile right now."));
+        return;
+    }
+    const EGCJob PreviousJob = PS->CurrentJob;
+    PS->CurrentJob = HiringJob;
+    if (HiringJob == EGCJob::Police)
+    {
+        if (PreviousJob != EGCJob::Police || !PS->bPoliceShiftActive || PS->bPoliceShiftFailed)
+        {
+            PS->StartPoliceShift();
+        }
+    }
+    else
+    {
+        PS->bPoliceShiftActive = false;
+        PS->bHasAlcoholTestKit = false;
+        PS->bHasDrugTestKit = false;
+    }
+    for (TActorIterator<AGCVehiclePawn> It(GetWorld()); It; ++It)
+    {
+        if (It->bIsPlayerOwned)
+        {
+            It->bIsPoliceVehicle = HiringJob == EGCJob::Police;
+            if (!It->bIsPoliceVehicle) It->SetSiren(false);
+        }
+    }
+    PS->RequestPersistentSave();
+    const FText JobName = StaticEnum<EGCJob>()
+        ? StaticEnum<EGCJob>()->GetDisplayNameTextByValue(static_cast<int64>(HiringJob))
+        : FText::FromString(TEXT("new position"));
+    Character->ShowSubtitle(FString::Printf(TEXT("Hired: %s. Report for your first shift."), *JobName.ToString()), 5.0f);
+    bHiringAvailable = false;
+    bJobOfferPrompted = false;
+}
+
+void AGCLocationActor::DeclineHiringOffer(AGCCharacter* Character)
+{
+    if (!Character || !bJobOfferPrompted)
+    {
+        return;
+    }
+    bHiringAvailable = false;
+    bJobOfferPrompted = false;
+    Character->ShowSubtitle(TEXT("You declined the offer. The opening is no longer available."), 4.0f);
 }

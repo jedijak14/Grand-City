@@ -40,11 +40,12 @@
 - [x] Synthesized SFX set (17 WAVs in `AudioSFX/`, wiring `Docs/SFX.md`; the original generator script was not included in the current upload)
 - [x] Voice batch 2 recorded — all 20 scripted lines now have audio (`AudioVoice/`)
 - [x] Cloth/hair settings toggle now consumed by the character (HoodieMesh/HairMesh visibility)
-- [ ] AnimBP graph assets per imported skeleton (editor work — variables/docs/script provided)
+- [ ] AnimBP graph assets per imported skeleton (editor work — variables/docs/script provided); the Quaternius character assets include animations but need UE 5.8 import and retarget validation.
+- [ ] Create/validate Chaos Cloth data for suitable garments, tune collision/wind/material settings, and verify movement on player/NPC rigs. Runtime C++ controls now toggle simulation on skeletal mesh components; imported GLBs are full character/outfit models, not clothing overlays or preconfigured Chaos Cloth assets.
 - [ ] Niagara FX assets: tyre smoke, muzzle flash, blood, crash sparks, boat wake (C++ hooks exist)
 - [ ] Passenger-flight seatback as a UMG widget (currently canvas HUD); second island / OSM city pass
-- [ ] Compile and test moving escalator and elevator prototypes in UE (rider carry, doors, collisions, landings), then build production airport terminal interiors with bathrooms, check-in/boarding animations, and ambient passenger chatter
-- [ ] Replace sample/fallback vehicle and character meshes with original, licensed, high-quality production assets and rigged animations
+- [ ] Compile and test moving escalator and elevator prototypes in UE (rider carry, doors, collisions, landings). The starter-map builder now creates two walkable airport interior blockouts with check-in counters, screening lanes, gate podiums, lounge seating, restrooms, baggage services, linked Coastline Airways kiosks, and reciprocal ticketed airliner pawns; replace the cube greybox with authored terminal art and validate passenger navigation/boarding in UE.
+- [ ] Replace sample/fallback vehicle and character meshes with original, licensed, high-quality production assets and rigged animations. Quaternius CC0 character/outfit GLBs have been added under `ModelLibrary/Clothing/Quaternius/` and to the editor import script, but are not yet imported, retargeted, wired into outfit presets, or art-reviewed.
 - [ ] Compile and run the `L_HarborVerticalSlice` builder; profile the shared-wave/wake surface, art-review the result, then replace the procedural blockout with authored, licensed assets, trim sheets, decals, and production water (UE Editor work remains unverified)
 
 ## Phase 3 — Life-sim & shipping (deprioritized by owner, still planned)

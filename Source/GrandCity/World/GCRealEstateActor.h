@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Core/GCTypes.h"
 #include "GCRealEstateActor.generated.h"
 
 class AGCCharacter;
@@ -32,6 +33,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing")
 	FString PropertyName = TEXT("Pacific View House");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing")
+    FString StreetAddress = TEXT("42 Pacific View Drive");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing")
+    EGCPropertyType PropertyType = EGCPropertyType::SingleFamilyHome;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int32 Bedrooms = 3;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int32 Bathrooms = 2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int32 FloorAreaSquareFeet = 2200;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int64 AssessedValue = 425000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int64 AnnualPropertyTax = 5100;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0"))
+    int64 MonthlyMaintenance = 260;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float InitialCondition = 0.95f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Real Estate|Listing", meta = (ClampMin = "1000"))
 	int32 PurchasePrice = 125000;
 
@@ -41,6 +69,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Real Estate")
 	void Interact(AGCCharacter* Character);
+
+    UFUNCTION(BlueprintCallable, Category = "Gridlock|Property")
+    void SellOwnedProperty(AGCCharacter* Character);
+
+    UFUNCTION(BlueprintCallable, Category = "Gridlock|Property")
+    void PayPropertyTax(AGCCharacter* Character);
+
+    UFUNCTION(BlueprintCallable, Category = "Gridlock|Property")
+    void MaintainOwnedProperty(AGCCharacter* Character);
 
 protected:
 	UFUNCTION()
