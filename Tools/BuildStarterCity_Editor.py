@@ -34,18 +34,18 @@ def enum_value(enum_names, value_name):
     raise RuntimeError("Enum value {} not found in {}".format(value_name, enum_type))
 
 
-def import_hotel_reward_logos():
+def import_hotel_ad_art():
     source_dir = os.path.join(unreal.Paths.project_dir(), "Resources", "HotelRewards")
     if not os.path.isdir(source_dir):
-        unreal.log_warning("Hotel reward logo source folder was not found: {}".format(source_dir))
+        unreal.log_warning("Hotel campaign art source folder was not found: {}".format(source_dir))
         return
 
-    filenames = ("T_HiltonHonors.jpg", "T_MarriottBonvoy.jpg", "T_IHGOneRewards.png")
+    filenames = ("T_TidehouseHotels.png", "T_MeridianHouse.png", "T_AstaraGrand.png")
     tasks = []
     for filename in filenames:
         source = os.path.join(source_dir, filename)
         if not os.path.isfile(source):
-            unreal.log_warning("Hotel reward logo is missing: {}".format(source))
+            unreal.log_warning("Hotel campaign image is missing: {}".format(source))
             continue
         task = unreal.AssetImportTask()
         task.filename = source
@@ -73,7 +73,7 @@ def main():
     if not unreal.EditorLevelLibrary.new_level(MAP_PATH):
         raise RuntimeError("Could not create {}. Create an empty level manually and rerun.".format(MAP_PATH))
 
-    import_hotel_reward_logos()
+    import_hotel_ad_art()
 
     cube_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube.Cube")
     plane_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Plane.Plane")
@@ -170,6 +170,51 @@ def main():
             cube(escalator_mesh, (airport_x + side * 135.0, 6250.0, 275.0),
                  (4.0, 0.06, 0.06), label + " handrail", rail_rotation)
 
+    # Small first-pass housing/electronics slice: buy a deed from the live realtor,
+    # or seize the listing after killing the agent (wanted stars apply); Tab/E browse/buy devices.
+    realtor = spawn(native_class("GCPedestrian"), (-4400.0, -4300.0, 100.0))
+    realtor.set_actor_label("TEST - real estate agent", mark_dirty=True)
+    listing = spawn(native_class("GCRealEstateActor"), (-4000.0, -4500.0, 0.0))
+    listing.set_editor_property("property_id", "TEST-PACIFIC-HOUSE")
+    listing.set_editor_property("property_name", "Pacific View House")
+    listing.set_editor_property("purchase_price", 125000)
+    listing.set_editor_property("realtor", realtor)
+    sign = listing.get_editor_property("sign_mesh")
+    if sign:
+        sign.set_static_mesh(cube_mesh)
+    cube(cube_mesh, (-4000.0, -4500.0, 170.0), (7.0, 7.0, 3.4), "TEST - Pacific View home blockout")
+
+    device_store = spawn(native_class("GCDeviceStoreActor"), (4200.0, -5000.0, 0.0))
+    device_store.set_actor_label("TEST - electronics retailer", mark_dirty=True)
+    store_sign = device_store.get_editor_property("store_sign")
+    if store_sign:
+        store_sign.set_static_mesh(cube_mesh)
+
+    # Prototype bus routes use linked stops and the selected wallet payment method.
+    bus_stop_cls = native_class("GCBusStopActor")
+    downtown_stop = spawn(bus_stop_cls, (-1200.0, 1200.0, 0.0))
+    west_stop = spawn(bus_stop_cls, (-8000.0, 5200.0, 0.0))
+    east_stop = spawn(bus_stop_cls, (8000.0, 5200.0, 0.0))
+    stops = ((downtown_stop, "Downtown Central"), (west_stop, "West Terminal"), (east_stop, "East Terminal"))
+    for stop, stop_name in stops:
+        stop.set_editor_property("stop_name", stop_name)
+        stop.set_actor_label("TEST - bus stop - " + stop_name, mark_dirty=True)
+        sign_mesh = stop.get_editor_property("stop_sign")
+        if sign_mesh:
+            sign_mesh.set_static_mesh(cube_mesh)
+    downtown_stop.set_editor_property("destination_stops", [west_stop, east_stop])
+    west_stop.set_editor_property("destination_stops", [downtown_stop, east_stop])
+    east_stop.set_editor_property("destination_stops", [downtown_stop, west_stop])
+
+    # Autonomous route bus blockout; native actor and mesh are configured when the map builds.
+    bus = spawn(native_class("GCBusPawn"), (-650.0, 1200.0, 120.0))
+    bus.set_actor_label("TEST - Gridlock Transit route bus", mark_dirty=True)
+    bus.set_editor_property("route_stops", [downtown_stop, west_stop, east_stop])
+    bus_body = bus.get_editor_property("body_mesh")
+    if bus_body:
+        bus_body.set_static_mesh(cube_mesh)
+        bus_body.set_relative_scale3d((3.8, 1.25, 1.45))
+
     # Add visible default vehicle test pawns. Custom Blueprint children and imported
     # models should replace these defaults when available.
     for name, location in (
@@ -179,6 +224,15 @@ def main():
         ("GCSurfboardPawn", (600.0, 10500.0, 120.0)),
     ):
         spawn(native_class(name), location)
+
+    helicopter = spawn(native_class("GCHelicopterPawn"), (4200.0, 8000.0, 260.0))
+    helicopter.set_actor_label("TEST - Gridlock rotorcraft", mark_dirty=True)
+    fuselage = helicopter.get_editor_property("fuselage_mesh")
+    rotor = helicopter.get_editor_property("propeller_mesh")
+    if fuselage:
+        fuselage.set_static_mesh(cube_mesh)
+    if rotor:
+        rotor.set_static_mesh(cube_mesh)
 
     unreal.EditorLevelLibrary.save_current_level()
     unreal.log("Created {}. This is a greybox test map, not finished gameplay.".format(MAP_PATH))

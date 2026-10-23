@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "Vehicle/GCVehiclePawn.h"
+#include "Vehicle/GCBusPawn.h"
 
 AGCVehicleAIController::AGCVehicleAIController()
 {
@@ -18,7 +19,15 @@ void AGCVehicleAIController::OnPossess(APawn* InPawn)
 	{
 		Mode = EGCVehicleAIMode::PolicePursuit;
 	}
-	PickTrafficTarget();
+	if (Mode == EGCVehicleAIMode::BusRoute && BusRoutePoints.IsValidIndex(BusRouteIndex))
+	{
+		CurrentTarget = BusRoutePoints[BusRouteIndex];
+		bHasTarget = true;
+	}
+	else
+	{
+		PickTrafficTarget();
+	}
 }
 
 void AGCVehicleAIController::SetMode(EGCVehicleAIMode NewMode)
@@ -31,6 +40,20 @@ void AGCVehicleAIController::SetMode(EGCVehicleAIMode NewMode)
 		{
 			Vehicle->SetAIInputs(0.0f, 0.0f, true);
 		}
+	}
+}
+
+void AGCVehicleAIController::SetBusRoute(const TArray<FVector>& RoutePoints, float StopDwellSeconds)
+{
+	BusRoutePoints = RoutePoints;
+	BusRouteIndex = 0;
+	BusStopDwellSeconds = FMath::Clamp(StopDwellSeconds, 1.0f, 30.0f);
+	BusDwellRemaining = 0.0f;
+	Mode = EGCVehicleAIMode::BusRoute;
+	if (Vehicle && BusRoutePoints.IsValidIndex(BusRouteIndex))
+	{
+		CurrentTarget = BusRoutePoints[BusRouteIndex];
+		bHasTarget = true;
 	}
 }
 
@@ -163,6 +186,42 @@ void AGCVehicleAIController::Tick(float DeltaSeconds)
 			+ PlayerPawn->GetVelocity() * FMath::Clamp(Dist / 2500.0f, 0.15f, 0.85f);
 		const float Aggression = PS->WantedStars >= 4 ? 190.0f : 130.0f;
 		DriveToward(Predicted, Aggression, DeltaSeconds);
+		return;
+	}
+
+	case EGCVehicleAIMode::BusRoute:
+	{
+		if (BusRoutePoints.IsEmpty())
+		{
+			Vehicle->SetAIInputs(0.0f, 0.0f, true);
+			return;
+		}
+		if (BusDwellRemaining > 0.0f)
+		{
+			BusDwellRemaining = FMath::Max(0.0f, BusDwellRemaining - DeltaSeconds);
+			Vehicle->SetAIInputs(0.0f, 0.0f, true);
+			return;
+		}
+		if (!BusRoutePoints.IsValidIndex(BusRouteIndex))
+		{
+			BusRouteIndex = 0;
+		}
+		if (FVector::Dist2D(Vehicle->GetActorLocation(), BusRoutePoints[BusRouteIndex]) <= WaypointAcceptance)
+		{
+			if (AGCBusPawn* Bus = Cast<AGCBusPawn>(Vehicle))
+			{
+				Bus->NotifyRouteStopReached(BusRouteIndex);
+			}
+			BusDwellRemaining = BusStopDwellSeconds;
+			BusRouteIndex = (BusRouteIndex + 1) % BusRoutePoints.Num();
+			CurrentTarget = BusRoutePoints[BusRouteIndex];
+			bHasTarget = true;
+			Vehicle->SetAIInputs(0.0f, 0.0f, true);
+			return;
+		}
+		CurrentTarget = BusRoutePoints[BusRouteIndex];
+		bHasTarget = true;
+		DriveToward(CurrentTarget, TrafficCruiseKmh, DeltaSeconds);
 		return;
 	}
 

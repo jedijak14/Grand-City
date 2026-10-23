@@ -39,7 +39,7 @@ struct FGCFlightOffer
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Airline = TEXT("Grand City Air");
+	FString Airline = TEXT("Gridline Air");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString FlightNumber = TEXT("GC100");
@@ -74,7 +74,7 @@ struct FGCFlightTicket
 	FString PassengerName = TEXT("PLAYER / GUEST");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Airline = TEXT("Grand City Air");
+	FString Airline = TEXT("Gridline Air");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString FlightNumber = TEXT("GC100");

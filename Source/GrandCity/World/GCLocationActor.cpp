@@ -125,7 +125,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		}
 		if (PS && !PS->SpendMoney(HealCost))
 		{
-			Character->ShowSubtitle(FString::Printf(TEXT("Treatment costs $%d. You don't have enough cash."), HealCost), 4.0f);
+			Character->ShowSubtitle(FString::Printf(TEXT("Treatment costs $%d. Your selected wallet balance is too low."), HealCost), 4.0f);
 			break;
 		}
 		Character->Health->Heal(Character->Health->MaxHealth);
@@ -141,24 +141,36 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 			return;
 		}
 		NextRobTime = Now + RobCooldownSeconds;
+		const int32 Reward = FMath::RandRange(RobRewardMin, RobRewardMax);
 		if (PS)
 		{
-			PS->AddMoney(FMath::RandRange(RobRewardMin, RobRewardMax));
-			PS->AddWantedStars(2);
+			PS->AddMoney(Reward);
 		}
-		// Civilians nearby run for it.
 		TArray<AActor*> Nearby;
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGCPedestrian::StaticClass(), Nearby);
+		bool bWitnessed = false;
+		bool bScreamPlayed = false;
+		int32 WitnessStars = 1;
 		for (AActor* Actor : Nearby)
 		{
-			if (AGCPedestrian* Ped = Cast<AGCPedestrian>(Actor))
+			AGCPedestrian* Ped = Cast<AGCPedestrian>(Actor);
+			if (!Ped || FVector::Distance(Ped->GetActorLocation(), GetActorLocation()) > 2000.0f
+				|| !Ped->CanWitnessCrimeAt(GetActorLocation()))
 			{
-				if (!Ped->bIsPolice && FVector::Distance(Ped->GetActorLocation(), GetActorLocation()) < 2000.0f)
-				{
-					Ped->FleeFrom(Character->GetActorLocation());
-				}
+				continue;
 			}
+			bWitnessed = true;
+			WitnessStars = FMath::Max(WitnessStars, Ped->bIsPolice ? 2 : 1);
+			const bool bPlayScream = !Ped->bIsPolice && !bScreamPlayed;
+			Ped->ReactToWitnessedCrime(Character->GetActorLocation(), bPlayScream);
+			bScreamPlayed |= bPlayScream;
 		}
+		if (PS && bWitnessed)
+		{
+			PS->AddWantedStars(WitnessStars);
+		}
+		Character->ShowSubtitle(FString::Printf(TEXT("Robbery: +$%d. %s"), Reward,
+			bWitnessed ? TEXT("A witness raised the alarm.") : TEXT("No witness saw you.")), 4.0f);
 		break;
 	}
 
@@ -172,7 +184,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 			const int32 Fine = 300 * PS->WantedStars;
 			if (!PS->SpendMoney(Fine))
 			{
-				Character->ShowSubtitle(FString::Printf(TEXT("Your fine is $%d. You don't have enough cash."), Fine), 4.0f);
+				Character->ShowSubtitle(FString::Printf(TEXT("Your fine is $%d. Your selected wallet balance is too low."), Fine), 4.0f);
 				break;
 			}
 			PS->ClearWanted();
@@ -204,7 +216,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		}
 		if (!PS || !PS->SpendMoney(FlightCost))
 		{
-			Character->ShowSubtitle(FString::Printf(TEXT("The ticket costs $%d. You don't have enough cash."), FlightCost), 4.0f);
+			Character->ShowSubtitle(FString::Printf(TEXT("The ticket costs $%d. Your selected wallet balance is too low."), FlightCost), 4.0f);
 			break;
 		}
 		// Booked passenger flight (cutaway). Piloting your own plane is the other way there.
@@ -230,7 +242,7 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		}
 		if (!PS || !PS->SpendMoney(BoatRentalCost))
 		{
-			Character->ShowSubtitle(FString::Printf(TEXT("Boat rental costs $%d. You don't have enough cash."), BoatRentalCost), 4.0f);
+			Character->ShowSubtitle(FString::Printf(TEXT("Boat rental costs $%d. Your selected wallet balance is too low."), BoatRentalCost), 4.0f);
 			break;
 		}
 		{

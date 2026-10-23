@@ -1,4 +1,4 @@
-# Grand City — UE5 C++ Open-World Sandbox
+# Gridlock — UE5 Open-World City Game Prototype
 (M1: car physics + core sandbox · M2: boat/water sim, plane upgrades, airport computers, passenger flights & voice lines)
 
 A complete C++ gameplay foundation for an open-world sandbox game in **Unreal Engine 5.4**
@@ -74,14 +74,19 @@ Loading-screen artwork setup and the original gameplay-look mockup are documente
 
 | Context | Keys |
 |---|---|
-| On foot | WASD move · Mouse look · Shift sprint · Space jump · RMB aim · LMB fire · R reload · **1–4** weapons · **F** enter vehicle · **E** use location · **X** parachute · **V** first/third person |
+| On foot | WASD move · Mouse look · Shift sprint · Space jump · RMB aim · LMB fire · R reload · **1–4** weapons · **F** enter vehicle · **E** use location · **G** pickpocket (crouch/approach from behind) · **P** cycle cash/digital wallet · **X** parachute · **V** first/third person |
 | Car | W/S throttle/brake/reverse · A/D steer · **Space** handbrake/drift · Mouse orbit · **V** chase/cockpit · L lights · H siren (police) · **F** exit |
 | Plane (yours) | Shift/Ctrl throttle · ↑/↓ or Mouse pitch · A/D roll · Q/E rudder · **F** flaps · **G** gear · **B** spoilers · **Space** wheel brakes · **R** refuel on ground · **E** exit (then **X** parachute) |
 | Boat | W/S throttle · A/D rudder · **Space** anchor · F exit |
 | Airport computer | **Tab** choose flight · **B** choose class · **E** book, then **E** again to check in |
+| Electronics shop | **Tab** browse fictional phones/tablets/desktops · **E** purchase |
+| Bus stop | **Tab** choose linked stop · **E** ride (fare uses selected wallet) |
+| Police bodycam | **F6** toggle first-person camera + REC-style HUD (Police job only; no footage saved) |
+| Real-estate listing | **E** buy from a living realtor; after the realtor is killed, **E** can seize the home (wanted stars only if witnessed) |
 | Airliner seat | **1** flight map · **2** movies · **3** music · **4** games · **0** screen off · **V** camera · **E** disembark at gate |
 Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `GCSetTime 22.5`
 · `GCTeleport 32000 0 500` · `GCRepairVehicle` · `GCGod` · `GCSetJob President`
+Wallet: P cycles Cash, Bayline Tap, CoastPass, Harbor Card, and a $5,000 Bayline Credit line; K pays $500 of credit debt from digital funds. These fictional tenders use separate cash/digital balances. Job roles receive an automated digital paycheck every 120 seconds (job task loops remain prototype work).
 
 ## 5. What's implemented (code map)
 
@@ -92,7 +97,8 @@ Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `G
   respects the settings toggle), `GCParachuteComponent`
 - `Character/GCCharacter` + `GCAnimInstance`, `GCPedestrian`
 - `AI/*` — ped wander/flee/police (arrest vs lethal by stars), traffic & pursuit drivers
-- `World/*` — day/night + real star data, shared ocean wave field, locations, population spawner
+- `World/*` — day/night + real star data, shared ocean wave field, locations, population spawner;
+  `GCRealEstateActor` listing/purchase-or-burglary loop, `GCDeviceStoreActor` fictional-device catalog, and `GCBusStopActor` linked-stop fare/transfer prototype
 - `Vehicle/GCPlanePawn` (lift/stall/flaps/gear/spoilers/ground effect/fuel/wheel brakes),
   `Vehicle/GCBoatPawn` (multi-point buoyancy on a moving wave field, currents, planing lift,
   anchor, wake/spray FX hooks), `World/GCOceanManager` (height/normal/velocity/current/foam)

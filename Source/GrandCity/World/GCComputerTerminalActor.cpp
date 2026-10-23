@@ -136,7 +136,8 @@ FString AGCComputerTerminalActor::GetScreenText(AGCCharacter* Character) const
 		{
 			if (AGCPlayerState* PS = PC->GetPlayerState<AGCPlayerState>())
 			{
-				Text += FString::Printf(TEXT("Wallet: $%d\n"), PS->Money);
+				Text += FString::Printf(TEXT("Wallet: Cash $%d | Digital $%d | Credit $%d/$%d | %s\n"),
+					PS->Money, PS->DigitalBalance, PS->CreditUsed, PS->CreditLimit, *PS->GetPaymentMethodLabel());
 				if (PS->HasActiveTicket())
 				{
 					const FGCFlightTicket& T = PS->ActiveTicket;
@@ -268,7 +269,7 @@ void AGCComputerTerminalActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, A
 	{
 		Character->SetCurrentComputer(this);
 		Speak(Character, TEXT("CheckInGreeting"),
-			TEXT("Hello, and welcome to Grand City Air! I can book your flight and check you in right here — the screen shows today's departures."));
+			TEXT("Hello, and welcome to Gridline Air! I can book your flight and check you in right here — the screen shows today's departures."));
 	}
 }
 

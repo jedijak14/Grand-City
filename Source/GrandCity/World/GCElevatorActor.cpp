@@ -126,6 +126,12 @@ bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* Destinatio
 	BoardingFloorZ = CallerLanding->GetActorLocation().Z;
 	DestinationFloorZ = DestinationLanding->GetActorLocation().Z;
 	BaseFloorZ = FMath::Min(BoardingFloorZ, DestinationFloorZ);
+	if (ScreenWidget)
+	{
+		const int32 CallerFloor = FMath::RoundToInt((BoardingFloorZ - BaseFloorZ) / FMath::Max(100.0f, FloorHeightCm)) + 1;
+		const int32 TargetFloor = FMath::RoundToInt((DestinationFloorZ - BaseFloorZ) / FMath::Max(100.0f, FloorHeightCm)) + 1;
+		ScreenWidget->AnimateFloorSelection(CallerFloor, TargetFloor);
+	}
 	bGoingToPickupFloor = FMath::Abs(GetActorLocation().Z - BoardingFloorZ) > 5.0f;
 	bAtPickupFloor = !bGoingToPickupFloor;
 	TargetZ = BoardingFloorZ;
@@ -323,5 +329,9 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 		const int32 DestinationFloor = bIsMoving
 			? FMath::RoundToInt((TargetZ - BaseFloorZ) / SafeFloorHeight) + 1 : CurrentFloor;
 		ScreenWidget->SetElevatorReadout(CurrentFloor, bIsMoving, DestinationFloor);
+		if (State == EGCElevatorState::Idle)
+		{
+			ScreenWidget->SetIdleFloorButtonLabel(CurrentFloor);
+		}
 	}
 }

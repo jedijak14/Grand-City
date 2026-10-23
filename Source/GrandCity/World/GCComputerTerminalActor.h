@@ -51,7 +51,7 @@ public:
 	FString AirportCode = TEXT("GCI");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Airport")
-	FString AirportCity = TEXT("Grand City Intl");
+	FString AirportCity = TEXT("Gridlock International");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Airport")
 	FString DestinationCode = TEXT("NIS");
@@ -60,7 +60,7 @@ public:
 	FString DestinationCity = TEXT("North Island");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Airport")
-	FString AirlineName = TEXT("Grand City Air");
+	FString AirlineName = TEXT("Gridline Air");
 
 	/** Leave empty to auto-generate a small schedule in BeginPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Computer|Flights")

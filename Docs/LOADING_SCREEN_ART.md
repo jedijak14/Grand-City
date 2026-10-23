@@ -1,25 +1,11 @@
-# Loading-screen and gameplay look concepts
+# Gridlock loading art
 
-- `LoadingScreenBackdrop.png` is original generated key art for the loading screen: sunset coastal
-  city, palms, character, and vehicle. It uses a broad cinematic open-world loading-screen language
-  but contains no GTA/Rockstar logos, characters, or copied UI layout.
-- `LoadingScreenConcept.png` is a composited UI mockup over that art.
-- `GameplayLookConcept.png` is a gameplay-direction mockup with a speculative HUD. It is not a
-  capture from a running Unreal build and does not prove that the illustrated city, character,
-  car, UI, or effects are implemented.
+`Resources/LoadingArt/` contains three original generated cinematic loading-screen concepts: a sunset coast, rainy downtown, and harbor at blue hour. The artwork uses broad illustrated open-world key-art language but contains no third-party logos, characters, or copied UI. It is concept art, not a gameplay capture.
 
-## Load the backdrop in Unreal
+`UGCLoadingScreenWidget` cycles through the imported images on each construction and draws its own native loading card and progress bar. The legacy `Docs/LoadingScreenBackdrop.png` remains a fallback/optional override.
 
-`UGCLoadingScreenWidget` draws its native loading card and progress bar. It first uses a texture
-assigned on a Blueprint child; if none is assigned, it tries the imported backdrop asset and falls
-back to the built-in skyline if that asset is missing.
+1. Build the Unreal project, then run `Tools/ImportModels_Editor.py`. It imports the images into `/Game/Gridlock/UI` alongside the existing art/audio/model groups.
+2. To add more screens, place original `.png` art in `Resources/LoadingArt/`, update `BackgroundTextures` in the widget constructor, then re-run the importer.
+3. An optional Widget Blueprint child may override `BackgroundTexture` or the default art list.
 
-1. Build the Unreal project, then run `Tools/ImportModels_Editor.py` once. It imports
-   `LoadingScreenBackdrop.png` to `/Game/GrandCity/UI/LoadingScreenBackdrop` alongside the models
-   and audio. The widget discovers this fixed asset path automatically.
-2. Optionally create a Widget Blueprint derived from `UGCLoadingScreenWidget` and assign another
-   `BackgroundTexture` to its class defaults. On the project’s `AGCPlayerController` Blueprint
-   child, set `LoadingClass` to that widget to use the override.
-
-The composited PNG is concept art only; the Unreal widget draws its own UI rather than displaying
-the concept mockup. The asset import and live loading-screen result still require UE validation.
+The imported texture paths and visual result still need UE editor/package validation.

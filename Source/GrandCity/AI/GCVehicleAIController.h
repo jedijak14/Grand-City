@@ -11,7 +11,8 @@ enum class EGCVehicleAIMode : uint8
 {
 	Traffic,
 	PolicePursuit,
-	Parked
+	Parked,
+	BusRoute
 };
 
 /** Drives an AGCVehiclePawn through its SetAIInputs API: traffic cruising or police pursuit. */
@@ -38,6 +39,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI")
 	void SetMode(EGCVehicleAIMode NewMode);
 
+	UFUNCTION(BlueprintCallable, Category = "AI|Bus")
+	void SetBusRoute(const TArray<FVector>& RoutePoints, float StopDwellSeconds = 5.0f);
+
 private:
 	UPROPERTY()
 	AGCVehiclePawn* Vehicle = nullptr;
@@ -47,6 +51,10 @@ private:
 	float StuckTimer = 0.0f;
 	float ReverseUntilTime = 0.0f;
 	float TargetTimer = 0.0f;
+	TArray<FVector> BusRoutePoints;
+	int32 BusRouteIndex = 0;
+	float BusStopDwellSeconds = 5.0f;
+	float BusDwellRemaining = 0.0f;
 
 	void PickTrafficTarget();
 	void DriveToward(const FVector& TargetLocation, float DesiredKmh, float DeltaSeconds);

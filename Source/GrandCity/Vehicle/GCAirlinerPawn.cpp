@@ -82,7 +82,7 @@ AGCAirlinerPawn::AGCAirlinerPawn()
 		TEXT("The Last Lighthouse (Drama)"),
 		TEXT("Turbo Pigeons 3 (Family)"),
 		TEXT("Ocean Deep: Making Waves (Documentary)"),
-		TEXT("Grand City Nights (Crime)")
+		TEXT("Gridlock Nights (Crime)")
 	};
 	MusicTracks = {
 		TEXT("Skyline Radio - Morning Mix"),
@@ -221,7 +221,7 @@ bool AGCAirlinerPawn::BoardPassenger(AGCCharacter* Character)
 	Phase = EGCFlightPhase::Boarding;
 	DepartCountdown = 5.0f;
 	SpawnNPCPassengers();
-	Announce(TEXT("WelcomeAboard"), TEXT("Welcome aboard Grand City Air! Find your seat, stow your bags, and we'll be pushing back shortly."));
+	Announce(TEXT("WelcomeAboard"), TEXT("Welcome aboard Gridline Air! Find your seat, stow your bags, and we'll be pushing back shortly."));
 	return true;
 }
 
@@ -359,7 +359,7 @@ void AGCAirlinerPawn::Tick(float DeltaSeconds)
 		if (ArrivedTimer > 3.0f)
 		{
 			bGateAnnouncementPlayed = true;
-			Announce(TEXT("GateArrival"), TEXT("We've arrived at the gate. Thank you for flying Grand City Air — press E to head into the terminal."));
+			Announce(TEXT("GateArrival"), TEXT("We've arrived at the gate. Thank you for flying Gridline Air — press E to head into the terminal."));
 		}
 	}
 
@@ -413,7 +413,7 @@ void AGCAirlinerPawn::Tick(float DeltaSeconds)
 // ---------------------------------------------------------------- entertainment
 FString AGCAirlinerPawn::GetSeatbackScreenText() const
 {
-	FString Header = FString::Printf(TEXT("GRAND CITY AIR  %s -> %s   [%s]\n"), *FromCode, *ToCode, *GetPhaseText());
+	FString Header = FString::Printf(TEXT("GRIDLINE AIR  %s -> %s   [%s]\n"), *FromCode, *ToCode, *GetPhaseText());
 	switch (EntertainmentMode)
 	{
 	case EGCEntertainmentMode::Off:

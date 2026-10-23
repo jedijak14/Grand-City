@@ -72,7 +72,7 @@ void UGCSettingsWidget::NativeConstruct()
 		PanelSlot->SetAlignment(FVector2D(0.5f, 0.5f));
 	}
 
-	AddSettingsLabel(WidgetTree, Stack, TEXT("GRAND CITY SETTINGS"));
+	AddSettingsLabel(WidgetTree, Stack, TEXT("GRIDLOCK SETTINGS"));
 	BloodCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Blood effects"));
 	WavesCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Ocean waves"));
 	GrassCheckBox = AddSettingsCheckBox(WidgetTree, Stack, TEXT("Grass"));

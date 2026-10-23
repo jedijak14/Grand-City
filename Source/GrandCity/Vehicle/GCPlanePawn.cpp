@@ -141,7 +141,8 @@ void AGCPlanePawn::Tick(float DeltaSeconds)
 		}
 	}
 
-	PropSpinDeg = FMath::Fmod(PropSpinDeg + (120.0f + Throttle * 2600.0f) * DeltaSeconds, 360.0f);
+	const float RotorSpinRate = bHelicopterMode ? 900.0f + Throttle * 5400.0f : 120.0f + Throttle * 2600.0f;
+	PropSpinDeg = FMath::Fmod(PropSpinDeg + RotorSpinRate * DeltaSeconds, 360.0f);
 	if (PropellerMesh)
 	{
 		PropellerMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, PropSpinDeg));
@@ -162,9 +163,16 @@ void AGCPlanePawn::ApplyFlightPhysics(float DeltaSeconds)
 	const FVector Right = GetActorRightVector();
 	const FVector COM = Body->GetCenterOfMass();
 
-	// Thrust (dead stick when the tanks are dry).
+	// Fixed-wing thrust or helicopter collective lift (dead-stick when the tanks are dry).
 	const float EffectiveThrottle = FuelPercent > 0.0f ? Throttle : 0.0f;
-	Body->AddForceAtLocation(Forward * (EffectiveThrottle * MaxThrustN * 100.0f), COM);
+	if (bHelicopterMode)
+	{
+		Body->AddForceAtLocation(Up * (EffectiveThrottle * MassKg * 980.0f), COM);
+	}
+	else
+	{
+		Body->AddForceAtLocation(Forward * (EffectiveThrottle * MaxThrustN * 100.0f), COM);
+	}
 
 	// Ground proximity (drives ground effect + wheel brakes).
 	float GroundDistance = 1.0e7f;
@@ -191,7 +199,7 @@ void AGCPlanePawn::ApplyFlightPhysics(float DeltaSeconds)
 		}
 	}
 
-	if (SpeedMps > 2.0f)
+	if (SpeedMps > 2.0f && !bHelicopterMode)
 	{
 		// Angle of attack from local velocity: nose above the flight path = positive AoA.
 		const FVector LocalVel = GetActorTransform().InverseTransformVectorNoScale(Vel);

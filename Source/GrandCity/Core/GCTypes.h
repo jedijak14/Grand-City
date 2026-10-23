@@ -46,6 +46,17 @@ enum class EGCJob : uint8
 	President
 };
 
+/** Fictional in-world tender types; deliberately distinct from real payment brands. */
+UENUM(BlueprintType)
+enum class EGCPaymentMethod : uint8
+{
+	Cash,
+	BaylineTap,
+	CoastPass,
+	HarborCard,
+	BaylineCredit
+};
+
 UENUM(BlueprintType)
 enum class EGCWeaponType : uint8
 {
