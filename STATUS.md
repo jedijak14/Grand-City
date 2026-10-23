@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-- Unreal Engine 5.4 C++ project source lives under `Source/GrandCity/`; generated maps and imported
+- Unreal Engine 5.8 C++ project source lives under `Source/GrandCity/`; generated maps and imported
   content are editor outputs and are not checked in.
 - Native loading UI draws the streaming card/progress display and can resolve the original sunset
   harbor backdrop from `/Game/GrandCity/UI/LoadingScreenBackdrop` after the model importer runs.
@@ -25,7 +25,7 @@
 
 - Python syntax/AST checks and `git diff --check` have passed for the editor scripts and latest
   source changes. These do not validate Unreal APIs or runtime behavior.
-- **No Unreal Engine 5.4 or Visual Studio 2022 compiler is available in this workspace.** The new
+- **No Unreal Engine 5.8 or Visual Studio 2022 compiler is available in this workspace.** The new
   C++ additions (water wake response, escalator, and elevator actors), editor material creation, map
   appearance, moving-platform carry, landing overlap, collision, animation, cooking, and performance
   have not been built or run in Unreal.
@@ -41,7 +41,7 @@
 
 ## Next verification gate
 
-On Windows with UE 5.4 + Visual Studio 2022: install Git LFS, build **Development Editor | Win64**,
+On Windows with UE 5.8 + Visual Studio 2022: install Git LFS, build **Development Editor | Win64**,
 run `Tools/ImportModels_Editor.py`, then build and Play the starter map. Check escalator collisions
 and rider motion, verify the loaded backdrop, test boat/low-plane wakes and buoyancy, and profile
 the harbor surface with multiple wake sources. Fix compiler/runtime errors before presenting this
