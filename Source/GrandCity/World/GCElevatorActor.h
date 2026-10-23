@@ -103,6 +103,7 @@ private:
 	float BoardingRemaining = 0.0f;
 	bool bGoingToPickupFloor = false;
 	bool bAtPickupFloor = false;
+	bool bFloorSelectionDisplayed = false;
 	bool IsPassengerInsideCabin(const AGCCharacter* Passenger) const;
 	void SetDoorAlpha(float NewAlpha);
 };
