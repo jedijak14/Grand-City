@@ -84,7 +84,7 @@ void AGCLocationActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, AActor* O
 	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
 	{
 		Character->SetCurrentLocation(this);
-		const FString Prompt = FString::Printf(TEXT("%s — Press F: %s"),
+		const FString Prompt = FString::Printf(TEXT("%s — Press E: %s"),
 			*DisplayName.ToString(), *InteractionText.ToString());
 		Character->ShowSubtitle(Prompt, 4.0f);
 	}

@@ -10,11 +10,12 @@ class UStaticMeshComponent;
 class USceneComponent;
 class UGCVoiceLineComponent;
 class AGCCharacter;
+class UGCFlightTerminalWidget;
 
 /**
  * Airport computer / check-in desk.
  *
- * Flow (all in C++, screen drawn by the HUD today, UMG later):
+ * Flow (native UMG kiosk overlay with animated selection/action feedback):
  *   Walk up -> check-in agent greets you (voice line) -> [Tab] pick flight,
  *   [B] pick class, [E] book  ->  [E] again to check in (seat + gate assigned,
  *   boarding pass in your PlayerState wallet)  ->  walk to the airliner, [F] board.
@@ -103,6 +104,10 @@ protected:
 	void OnTriggerEnd(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<UGCFlightTerminalWidget> FlightWidget;
+	TWeakObjectPtr<AGCCharacter> CurrentUser;
+
 	void GenerateDefaultOffers();
 	void Speak(AGCCharacter* Character, FName LineID, const FString& Fallback);
 	static FString ClassName(EGCSeatClass SeatClass);

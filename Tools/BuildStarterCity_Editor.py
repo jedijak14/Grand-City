@@ -34,18 +34,18 @@ def enum_value(enum_names, value_name):
     raise RuntimeError("Enum value {} not found in {}".format(value_name, enum_type))
 
 
-def import_hotel_reward_logos():
+def import_hotel_ad_art():
     source_dir = os.path.join(unreal.Paths.project_dir(), "Resources", "HotelRewards")
     if not os.path.isdir(source_dir):
-        unreal.log_warning("Hotel reward logo source folder was not found: {}".format(source_dir))
+        unreal.log_warning("Hotel campaign art source folder was not found: {}".format(source_dir))
         return
 
-    filenames = ("T_HiltonHonors.jpg", "T_MarriottBonvoy.jpg", "T_IHGOneRewards.png")
+    filenames = ("T_TidehouseHotels.png", "T_MeridianHouse.png", "T_AstaraGrand.png")
     tasks = []
     for filename in filenames:
         source = os.path.join(source_dir, filename)
         if not os.path.isfile(source):
-            unreal.log_warning("Hotel reward logo is missing: {}".format(source))
+            unreal.log_warning("Hotel ad image is missing: {}".format(source))
             continue
         task = unreal.AssetImportTask()
         task.filename = source
@@ -73,7 +73,7 @@ def main():
     if not unreal.EditorLevelLibrary.new_level(MAP_PATH):
         raise RuntimeError("Could not create {}. Create an empty level manually and rerun.".format(MAP_PATH))
 
-    import_hotel_reward_logos()
+    import_hotel_ad_art()
 
     cube_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube.Cube")
     plane_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Plane.Plane")

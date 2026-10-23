@@ -4,11 +4,12 @@
 #include "Blueprint/UserWidget.h"
 #include "GCHotelElevatorScreenWidget.generated.h"
 
+class UBorder;
 class UImage;
 class UTextBlock;
 class UTexture2D;
 
-/** Native world-space hotel elevator display with a live floor readout and rewards-partner carousel. */
+/** Native world-space hotel elevator display with a live floor readout and rotating hotel campaigns. */
 UCLASS()
 class GRANDCITY_API UGCHotelElevatorScreenWidget : public UUserWidget
 {
@@ -18,6 +19,8 @@ public:
 	UGCHotelElevatorScreenWidget(const FObjectInitializer& ObjectInitializer);
 
 	void SetElevatorReadout(int32 CurrentFloor, bool bMoving, int32 DestinationFloor);
+	void AnimateFloorSelection(int32 CurrentFloor, int32 DestinationFloor);
+	void SetIdleFloorButtonLabel(int32 CurrentFloor);
 
 protected:
 	virtual void NativeConstruct() override;
@@ -25,26 +28,36 @@ protected:
 
 private:
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> PartnerLogoImage;
+	TObjectPtr<UImage> HotelAdImage;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> FloorReadout;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> PartnerName;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Elevator Screen|Rewards")
-	TArray<TSoftObjectPtr<UTexture2D>> PartnerLogoAssets;
+	TObjectPtr<UTextBlock> HotelFallback;
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTexture2D>> PartnerLogos;
+	TArray<TObjectPtr<UBorder>> FloorButtonFrames;
 
-	int32 ActivePartnerIndex = INDEX_NONE;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> FloorButtonLabels;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Elevator Screen|Hotel Ads")
+	TArray<TSoftObjectPtr<UTexture2D>> HotelAdAssets;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> HotelAdSlides;
+
+	int32 ActiveAdIndex = INDEX_NONE;
+	int32 PressedFloorButtonIndex = INDEX_NONE;
+	int32 CachedFloorButtonCurrent = MIN_int32;
+	int32 CachedFloorButtonDestination = MIN_int32;
+	float ButtonPressRemaining = 0.0f;
 	int32 CachedCurrentFloor = MIN_int32;
 	int32 CachedDestinationFloor = MIN_int32;
 	bool bCachedMoving = false;
-	float PartnerSlideTime = 0.0f;
+	float AdSlideTime = 0.0f;
 
-	void AdvancePartnerSlide();
+	void AdvanceAdSlide();
 	void RefreshFloorReadout();
 };

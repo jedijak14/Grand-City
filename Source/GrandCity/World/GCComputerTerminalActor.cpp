@@ -6,6 +6,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCPlayerState.h"
 #include "GameFramework/PlayerController.h"
+#include "Blueprint/UserWidget.h"
+#include "UI/GCFlightTerminalWidget.h"
 
 AGCComputerTerminalActor::AGCComputerTerminalActor()
 {
@@ -82,6 +84,10 @@ void AGCComputerTerminalActor::CycleOffer()
 	if (Offers.Num() > 0)
 	{
 		SelectedOfferIndex = (SelectedOfferIndex + 1) % Offers.Num();
+		if (FlightWidget)
+		{
+			FlightWidget->PlaySelectionFeedback();
+		}
 	}
 }
 
@@ -89,6 +95,10 @@ void AGCComputerTerminalActor::CycleClass()
 {
 	SelectedClass = SelectedClass == EGCSeatClass::Economy ? EGCSeatClass::Business
 		: (SelectedClass == EGCSeatClass::Business ? EGCSeatClass::First : EGCSeatClass::Economy);
+	if (FlightWidget)
+	{
+		FlightWidget->PlaySelectionFeedback();
+	}
 }
 
 int32 AGCComputerTerminalActor::PriceForSelected() const
@@ -237,6 +247,10 @@ void AGCComputerTerminalActor::UseComputer(AGCCharacter* Character)
 	{
 		return;
 	}
+	if (FlightWidget)
+	{
+		FlightWidget->PlayActionFeedback();
+	}
 	APlayerController* PC = Cast<APlayerController>(Character->GetController());
 	AGCPlayerState* PS = PC ? PC->GetPlayerState<AGCPlayerState>() : nullptr;
 	if (!PS)
@@ -267,6 +281,22 @@ void AGCComputerTerminalActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, A
 	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
 	{
 		Character->SetCurrentComputer(this);
+		CurrentUser = Character;
+		if (APlayerController* PC = Cast<APlayerController>(Character->GetController()); PC && PC->IsLocalController())
+		{
+			if (!FlightWidget)
+			{
+				FlightWidget = CreateWidget<UGCFlightTerminalWidget>(PC, UGCFlightTerminalWidget::StaticClass());
+			}
+			if (FlightWidget)
+			{
+				FlightWidget->SetTerminal(this, Character);
+				if (!FlightWidget->IsInViewport())
+				{
+					FlightWidget->AddToViewport(20);
+				}
+			}
+		}
 		Speak(Character, TEXT("CheckInGreeting"),
 			TEXT("Hello, and welcome to Grand City Air! I can book your flight and check you in right here — the screen shows today's departures."));
 	}
@@ -279,6 +309,15 @@ void AGCComputerTerminalActor::OnTriggerEnd(UPrimitiveComponent* Overlapped, AAc
 		if (Character->CurrentComputer == this)
 		{
 			Character->SetCurrentComputer(nullptr);
+		}
+		if (CurrentUser.Get() == Character)
+		{
+			CurrentUser.Reset();
+			if (FlightWidget)
+			{
+				FlightWidget->RemoveFromParent();
+				FlightWidget = nullptr;
+			}
 		}
 	}
 }

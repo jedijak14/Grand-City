@@ -14,6 +14,7 @@ class USkeletalMeshComponent;
 class AGCLocationActor;
 class AGCComputerTerminalActor;
 class AGCOceanManager;
+class UGCPhoneWidget;
 
 /**
  * Player character: third/first person, sprint, jump, swim, aim & shoot,
@@ -121,6 +122,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<AGCOceanManager> OceanManager = nullptr;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UGCPhoneWidget> PhoneWidget;
+
+	bool bPhoneOpen = false;
 	float ClothCheckTimer = 0.0f;
 	bool bSprinting = false;
 	bool bFiring = false;
@@ -146,6 +151,7 @@ private:
 	void Interact();
 	void CycleComputerOffer();
 	void CycleComputerClass();
+	void TogglePhone();
 	void TryEnterVehicle();
 	void DeployParachute();
 	void ToggleFirstPerson();

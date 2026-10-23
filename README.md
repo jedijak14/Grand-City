@@ -74,11 +74,12 @@ Loading-screen artwork setup and the original gameplay-look mockup are documente
 
 | Context | Keys |
 |---|---|
-| On foot | WASD move · Mouse look · Shift sprint · Space jump · RMB aim · LMB fire · R reload · **1–4** weapons · **F** enter vehicle · **E** use location · **X** parachute · **V** first/third person |
+| On foot | WASD move · Mouse look · Shift sprint · Space jump · RMB aim · LMB fire · R reload · **1–4** weapons · **F** enter vehicle · **E** use location · **P** phone · **X** parachute · **V** first/third person |
 | Car | W/S throttle/brake/reverse · A/D steer · **Space** handbrake/drift · Mouse orbit · **V** chase/cockpit · L lights · H siren (police) · **F** exit |
 | Plane (yours) | Shift/Ctrl throttle · ↑/↓ or Mouse pitch · A/D roll · Q/E rudder · **F** flaps · **G** gear · **B** spoilers · **Space** wheel brakes · **R** refuel on ground · **E** exit (then **X** parachute) |
 | Boat | W/S throttle · A/D rudder · **Space** anchor · F exit |
-| Airport computer | **Tab** choose flight · **B** choose class · **E** book, then **E** again to check in |
+| Airport computer | **Tab** choose flight · **B** choose class · **E** book, then **E** again to check in; selection and action feedback animate on the kiosk overlay |
+| Phone | **P** open/close the animated wallet and boarding-pass screen |
 | Airliner seat | **1** flight map · **2** movies · **3** music · **4** games · **0** screen off · **V** camera · **E** disembark at gate |
 Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `GCSetTime 22.5`
 · `GCTeleport 32000 0 500` · `GCRepairVehicle` · `GCGod` · `GCSetJob President`
@@ -105,11 +106,11 @@ Dev console (**~**): `GCSpawnCar` · `GCSetWanted 4` · `GCGiveMoney 5000` · `G
   waves, grass, cloth/hair, densities, day length), native money/wanted/health/speed HUD, dev commands
 - **Phase 2:** `Vehicle/GCSurfboardPawn` (surfboard/paddleboard/raft on the wave field),
   `World/GCGrassFieldActor` (HISM grass, wind phase, settings-gated), `World/GCMarineLifeActor`
-  (fish school + dolphins), `UI/GCMainMenuWidget` + `GCSettingsWidget` + `GCLoadingScreenWidget`
-  (native UMG with optional loading key art, via `GCMenu`/`GCSettingsMenu`/`GCLoadingTest`), crouch (C), expanded
+  (fish school + dolphins), native UMG menus/loading, animated airport flight-selection panel,
+  slide-in wallet/boarding-pass phone, and elevator floor-button feedback; crouch (C), expanded
   `GCAnimInstance` (see `Docs/ANIMATION_SETUP.md`), `AudioSFX/` + `Docs/SFX.md`, voice batch 2
 
-See `ROADMAP.md` for what remains (AnimBP/Niagara editor assets, jobs/phone, packaged-game
+See `ROADMAP.md` for what remains (full phone apps, AnimBP/Niagara editor assets, packaged-game
 build + verified updater, then multiplayer) and `Docs/PACKAGING_AND_WEBSITE.md` for the live
 website + UE5-project installer details.
 

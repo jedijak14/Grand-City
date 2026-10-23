@@ -123,9 +123,22 @@ bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* Destinatio
 
 	RequestedFloor = DestinationLanding;
 	RequestedPassenger = Passenger;
+	bFloorSelectionDisplayed = false;
 	BoardingFloorZ = CallerLanding->GetActorLocation().Z;
 	DestinationFloorZ = DestinationLanding->GetActorLocation().Z;
 	BaseFloorZ = FMath::Min(BoardingFloorZ, DestinationFloorZ);
+	const float SafeFloorHeight = FMath::Max(100.0f, FloorHeightCm);
+	const int32 CallerFloor = FMath::RoundToInt((BoardingFloorZ - BaseFloorZ) / SafeFloorHeight) + 1;
+	const int32 DestinationFloor = FMath::RoundToInt((DestinationFloorZ - BaseFloorZ) / SafeFloorHeight) + 1;
+	if (!ScreenWidget && CabinDisplay)
+	{
+		ScreenWidget = Cast<UGCHotelElevatorScreenWidget>(CabinDisplay->GetUserWidgetObject());
+	}
+	if (ScreenWidget)
+	{
+		ScreenWidget->AnimateFloorSelection(CallerFloor, DestinationFloor);
+		bFloorSelectionDisplayed = true;
+	}
 	bGoingToPickupFloor = FMath::Abs(GetActorLocation().Z - BoardingFloorZ) > 5.0f;
 	bAtPickupFloor = !bGoingToPickupFloor;
 	TargetZ = BoardingFloorZ;
@@ -318,10 +331,22 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 	if (ScreenWidget)
 	{
 		const float SafeFloorHeight = FMath::Max(100.0f, FloorHeightCm);
+		if (RequestedFloor.IsValid() && !bFloorSelectionDisplayed)
+		{
+			const int32 CallerFloor = FMath::RoundToInt((BoardingFloorZ - BaseFloorZ) / SafeFloorHeight) + 1;
+			const int32 RequestedDestination = FMath::RoundToInt((DestinationFloorZ - BaseFloorZ) / SafeFloorHeight) + 1;
+			ScreenWidget->AnimateFloorSelection(CallerFloor, RequestedDestination);
+			bFloorSelectionDisplayed = true;
+		}
 		const int32 CurrentFloor = FMath::RoundToInt((GetActorLocation().Z - BaseFloorZ) / SafeFloorHeight) + 1;
 		const bool bIsMoving = State == EGCElevatorState::Moving;
 		const int32 DestinationFloor = bIsMoving
 			? FMath::RoundToInt((TargetZ - BaseFloorZ) / SafeFloorHeight) + 1 : CurrentFloor;
 		ScreenWidget->SetElevatorReadout(CurrentFloor, bIsMoving, DestinationFloor);
+		if (State == EGCElevatorState::Idle)
+		{
+			ScreenWidget->SetIdleFloorButtonLabel(CurrentFloor);
+			bFloorSelectionDisplayed = false;
+		}
 	}
 }

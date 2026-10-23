@@ -7,8 +7,9 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
-#include "Components/SizeBox.h"
+#include "Components/Overlay.h"
 #include "Components/ScaleBox.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -32,10 +33,10 @@ namespace
 UGCHotelElevatorScreenWidget::UGCHotelElevatorScreenWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	PartnerLogoAssets = {
-		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_HiltonHonors.T_HiltonHonors"))),
-		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_MarriottBonvoy.T_MarriottBonvoy"))),
-		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_IHGOneRewards.T_IHGOneRewards")))
+	HotelAdAssets = {
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_TidehouseHotels.T_TidehouseHotels"))),
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_MeridianHouse.T_MeridianHouse"))),
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/HotelRewards/T_AstaraGrand.T_AstaraGrand")))
 	};
 }
 
@@ -47,10 +48,10 @@ void UGCHotelElevatorScreenWidget::NativeConstruct()
 		return;
 	}
 
-	PartnerLogos.Reset();
-	for (const TSoftObjectPtr<UTexture2D>& LogoAsset : PartnerLogoAssets)
+	HotelAdSlides.Reset();
+	for (const TSoftObjectPtr<UTexture2D>& AdAsset : HotelAdAssets)
 	{
-		PartnerLogos.Add(LogoAsset.LoadSynchronous());
+		HotelAdSlides.Add(AdAsset.LoadSynchronous());
 	}
 
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
@@ -70,7 +71,7 @@ void UGCHotelElevatorScreenWidget::NativeConstruct()
 
 	UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UTextBlock* Brand = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	Brand->SetText(FText::FromString(TEXT("GRAND CITY  /  HOTEL")));
+	Brand->SetText(FText::FromString(TEXT("GRAND CITY  /  STAYS")));
 	Brand->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 18));
 	Brand->SetColorAndOpacity(FSlateColor(ScreenAccent));
 	if (UHorizontalBoxSlot* BrandSlot = Header->AddChildToHorizontalBox(Brand))
@@ -85,74 +86,110 @@ void UGCHotelElevatorScreenWidget::NativeConstruct()
 	Header->AddChildToHorizontalBox(FloorReadout);
 	if (UVerticalBoxSlot* HeaderSlot = Layout->AddChildToVerticalBox(Header))
 	{
-		HeaderSlot->SetPadding(FMargin(4.0f, 0.0f, 4.0f, 12.0f));
+		HeaderSlot->SetPadding(FMargin(4.0f, 0.0f, 4.0f, 8.0f));
 	}
 
-	UBorder* LogoFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	LogoFrame->SetBrushColor(FLinearColor::White);
-	LogoFrame->SetPadding(FMargin(8.0f));
-	USizeBox* LogoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	LogoSize->SetWidthOverride(640.0f);
-	LogoSize->SetHeightOverride(255.0f);
-	UScaleBox* LogoScale = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass());
-	LogoScale->SetStretch(EStretch::ScaleToFit);
-	PartnerLogoImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	PartnerLogoImage->SetColorAndOpacity(FLinearColor::White);
-	LogoScale->AddChild(PartnerLogoImage);
-	LogoSize->AddChild(LogoScale);
-	LogoFrame->AddChild(LogoSize);
-	if (UVerticalBoxSlot* LogoSlot = Layout->AddChildToVerticalBox(LogoFrame))
+	UHorizontalBox* FloorButtons = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	for (int32 ButtonIndex = 0; ButtonIndex < 2; ++ButtonIndex)
 	{
-		LogoSlot->SetHorizontalAlignment(HAlign_Center);
-		LogoSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+		UBorder* ButtonFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		ButtonFrame->SetBrushColor(FLinearColor(0.07f, 0.16f, 0.19f, 1.0f));
+		ButtonFrame->SetPadding(FMargin(7.0f, 4.0f));
+		UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+		ButtonLabel->SetJustification(ETextJustify::Center);
+		ButtonLabel->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 13));
+		ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		ButtonFrame->AddChild(ButtonLabel);
+		FloorButtonFrames.Add(ButtonFrame);
+		FloorButtonLabels.Add(ButtonLabel);
+		if (UHorizontalBoxSlot* ButtonSlot = FloorButtons->AddChildToHorizontalBox(ButtonFrame))
+		{
+			ButtonSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			ButtonSlot->SetPadding(FMargin(3.0f, 0.0f));
+		}
+	}
+	if (UVerticalBoxSlot* ButtonsSlot = Layout->AddChildToVerticalBox(FloorButtons))
+	{
+		ButtonsSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 	}
 
-	UTextBlock* RewardsEyebrow = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	RewardsEyebrow->SetText(FText::FromString(TEXT("HOTEL REWARDS PARTNERS")));
-	RewardsEyebrow->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 11));
-	RewardsEyebrow->SetColorAndOpacity(FSlateColor(ScreenMuted));
-	if (UVerticalBoxSlot* EyebrowSlot = Layout->AddChildToVerticalBox(RewardsEyebrow))
-	{
-		EyebrowSlot->SetPadding(FMargin(4.0f, 0.0f, 4.0f, 2.0f));
-	}
+	UBorder* AdFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	AdFrame->SetBrushColor(FLinearColor(0.95f, 0.95f, 0.95f, 1.0f));
+	AdFrame->SetPadding(FMargin(6.0f));
+	USizeBox* AdSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	AdSize->SetWidthOverride(640.0f);
+	AdSize->SetHeightOverride(280.0f);
 
-	PartnerName = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	PartnerName->SetJustification(ETextJustify::Center);
-	PartnerName->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 20));
-	PartnerName->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	if (UVerticalBoxSlot* PartnerSlot = Layout->AddChildToVerticalBox(PartnerName))
+	UOverlay* AdOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	HotelFallback = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	HotelFallback->SetText(FText::FromString(TEXT("FEATURED HOTEL")));
+	HotelFallback->SetJustification(ETextJustify::Center);
+	HotelFallback->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 28));
+	HotelFallback->SetColorAndOpacity(FSlateColor(ScreenInk));
+	AdOverlay->AddChild(HotelFallback);
+
+	UScaleBox* AdScale = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass());
+	AdScale->SetStretch(EStretch::ScaleToFit);
+	HotelAdImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+	HotelAdImage->SetColorAndOpacity(FLinearColor::White);
+	AdScale->AddChild(HotelAdImage);
+	AdOverlay->AddChild(AdScale);
+	AdSize->AddChild(AdOverlay);
+	AdFrame->AddChild(AdSize);
+	if (UVerticalBoxSlot* AdSlot = Layout->AddChildToVerticalBox(AdFrame))
 	{
-		PartnerSlot->SetHorizontalAlignment(HAlign_Center);
+		AdSlot->SetHorizontalAlignment(HAlign_Center);
+		AdSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 	}
 
 	UTextBlock* Footer = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	Footer->SetText(FText::FromString(TEXT("Discover member benefits at participating stays.")));
+	Footer->SetText(FText::FromString(TEXT("FEATURED HOTEL  /  ROTATING CAMPAIGN")));
 	Footer->SetJustification(ETextJustify::Center);
 	Footer->SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 11));
 	Footer->SetColorAndOpacity(FSlateColor(ScreenMuted));
 	if (UVerticalBoxSlot* FooterSlot = Layout->AddChildToVerticalBox(Footer))
 	{
-		FooterSlot->SetPadding(FMargin(0.0f, 5.0f, 0.0f, 0.0f));
+		FooterSlot->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 	}
 
 	SetElevatorReadout(1, false, 1);
 	RefreshFloorReadout();
-	AdvancePartnerSlide();
+	if (FloorButtonLabels.IsValidIndex(0) && FloorButtonLabels.IsValidIndex(1))
+	{
+		FloorButtonLabels[0]->SetText(FText::FromString(TEXT("CURRENT FLOOR 01")));
+		FloorButtonLabels[1]->SetText(FText::FromString(TEXT("SELECT DESTINATION")));
+	}
+	AdvanceAdSlide();
 }
 
 void UGCHotelElevatorScreenWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	if (PartnerLogoAssets.Num() < 2)
+	if (HotelAdAssets.Num() >= 2)
 	{
-		return;
+		AdSlideTime += InDeltaTime;
+		if (AdSlideTime >= 7.0f)
+		{
+			AdSlideTime = FMath::Fmod(AdSlideTime, 7.0f);
+			AdvanceAdSlide();
+		}
 	}
 
-	PartnerSlideTime += InDeltaTime;
-	if (PartnerSlideTime >= 7.0f)
+	ButtonPressRemaining = FMath::Max(0.0f, ButtonPressRemaining - InDeltaTime);
+	for (int32 Index = 0; Index < FloorButtonFrames.Num(); ++Index)
 	{
-		PartnerSlideTime = FMath::Fmod(PartnerSlideTime, 7.0f);
-		AdvancePartnerSlide();
+		UBorder* Button = FloorButtonFrames[Index];
+		if (!Button)
+		{
+			continue;
+		}
+		const bool bPressed = Index == PressedFloorButtonIndex && ButtonPressRemaining > 0.0f;
+		const float PulsePhase = bPressed ? 1.0f - ButtonPressRemaining / 0.42f : 1.0f;
+		const float Pulse = bPressed ? FMath::Sin(PulsePhase * PI) : 0.0f;
+		const float Scale = 1.0f + 0.14f * Pulse;
+		Button->SetRenderScale(FVector2D(Scale, Scale));
+		Button->SetBrushColor(FMath::Lerp(FLinearColor(0.07f, 0.16f, 0.19f, 1.0f),
+			FLinearColor(0.10f, 0.72f, 0.62f, 1.0f), Pulse));
 	}
 }
 
@@ -167,6 +204,43 @@ void UGCHotelElevatorScreenWidget::SetElevatorReadout(int32 CurrentFloor, bool b
 	CachedDestinationFloor = DestinationFloor;
 	bCachedMoving = bMoving;
 	RefreshFloorReadout();
+}
+
+void UGCHotelElevatorScreenWidget::AnimateFloorSelection(int32 CurrentFloor, int32 DestinationFloor)
+{
+	CachedFloorButtonCurrent = CurrentFloor;
+	CachedFloorButtonDestination = DestinationFloor;
+	if (FloorButtonLabels.IsValidIndex(0))
+	{
+		FloorButtonLabels[0]->SetText(FText::FromString(
+			FString::Printf(TEXT("CURRENT FLOOR %s"), *FloorLabel(CurrentFloor))));
+	}
+	if (FloorButtonLabels.IsValidIndex(1))
+	{
+		FloorButtonLabels[1]->SetText(FText::FromString(
+			FString::Printf(TEXT("SELECT FLOOR %s"), *FloorLabel(DestinationFloor))));
+	}
+	PressedFloorButtonIndex = 1;
+	ButtonPressRemaining = 0.42f;
+}
+
+void UGCHotelElevatorScreenWidget::SetIdleFloorButtonLabel(int32 CurrentFloor)
+{
+	if (CachedFloorButtonCurrent == CurrentFloor && CachedFloorButtonDestination == INDEX_NONE)
+	{
+		return;
+	}
+	CachedFloorButtonCurrent = CurrentFloor;
+	CachedFloorButtonDestination = INDEX_NONE;
+	if (FloorButtonLabels.IsValidIndex(0))
+	{
+		FloorButtonLabels[0]->SetText(FText::FromString(
+			FString::Printf(TEXT("CURRENT FLOOR %s"), *FloorLabel(CurrentFloor))));
+	}
+	if (FloorButtonLabels.IsValidIndex(1))
+	{
+		FloorButtonLabels[1]->SetText(FText::FromString(TEXT("SELECT DESTINATION")));
+	}
 }
 
 void UGCHotelElevatorScreenWidget::RefreshFloorReadout()
@@ -185,30 +259,26 @@ void UGCHotelElevatorScreenWidget::RefreshFloorReadout()
 	FloorReadout->SetText(FText::FromString(Text));
 }
 
-void UGCHotelElevatorScreenWidget::AdvancePartnerSlide()
+void UGCHotelElevatorScreenWidget::AdvanceAdSlide()
 {
-	static const TCHAR* PartnerLabels[] = {
-		TEXT("Hilton Honors"),
-		TEXT("Marriott Bonvoy"),
-		TEXT("IHG One Rewards")
+	static const TCHAR* HotelNames[] = {
+		TEXT("TIDEHOUSE HOTELS"),
+		TEXT("MERIDIAN HOUSE"),
+		TEXT("ASTARA GRAND")
 	};
-	const int32 PartnerCount = UE_ARRAY_COUNT(PartnerLabels);
-	ActivePartnerIndex = (ActivePartnerIndex + 1) % PartnerCount;
-	if (PartnerName)
+	const int32 SlideCount = UE_ARRAY_COUNT(HotelNames);
+	ActiveAdIndex = (ActiveAdIndex + 1) % SlideCount;
+
+	if (HotelAdSlides.IsValidIndex(ActiveAdIndex) && HotelAdSlides[ActiveAdIndex])
 	{
-		PartnerName->SetText(FText::FromString(PartnerLabels[ActivePartnerIndex]));
+		HotelAdImage->SetBrushFromTexture(HotelAdSlides[ActiveAdIndex], false);
+		HotelAdImage->SetVisibility(ESlateVisibility::Visible);
+		HotelFallback->SetVisibility(ESlateVisibility::Collapsed);
 	}
-	if (PartnerLogoImage && PartnerLogos.IsValidIndex(ActivePartnerIndex))
+	else
 	{
-		if (UTexture2D* Logo = PartnerLogos[ActivePartnerIndex])
-		{
-			PartnerLogoImage->SetBrushFromTexture(Logo, true);
-			PartnerLogoImage->SetVisibility(ESlateVisibility::Visible);
-		}
-		else
-		{
-			PartnerLogoImage->SetBrush(FSlateBrush());
-			PartnerLogoImage->SetVisibility(ESlateVisibility::Collapsed);
-		}
+		HotelAdImage->SetVisibility(ESlateVisibility::Collapsed);
+		HotelFallback->SetText(FText::FromString(HotelNames[ActiveAdIndex]));
+		HotelFallback->SetVisibility(ESlateVisibility::Visible);
 	}
 }

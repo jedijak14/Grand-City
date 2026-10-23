@@ -7,6 +7,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/GCPlayerState.h"
+#include "Blueprint/UserWidget.h"
+#include "UI/GCPhoneWidget.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -133,6 +135,7 @@ void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AGCCharacter::CycleComputerOffer);
 	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AGCCharacter::CycleComputerClass);
+	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &AGCCharacter::TogglePhone);
 	PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGCCharacter::EquipPistol);
 	PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGCCharacter::EquipRifle);
 	PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AGCCharacter::EquipSMG);
@@ -275,6 +278,10 @@ void AGCCharacter::ToggleFirstPerson()
 
 void AGCCharacter::Interact()
 {
+	if (bPhoneOpen)
+	{
+		return;
+	}
 	// Airport computers take priority over the generic location action.
 	if (CurrentComputer)
 	{
@@ -289,7 +296,7 @@ void AGCCharacter::Interact()
 
 void AGCCharacter::CycleComputerOffer()
 {
-	if (CurrentComputer)
+	if (!bPhoneOpen && CurrentComputer)
 	{
 		CurrentComputer->CycleOffer();
 	}
@@ -297,10 +304,57 @@ void AGCCharacter::CycleComputerOffer()
 
 void AGCCharacter::CycleComputerClass()
 {
-	if (CurrentComputer)
+	if (!bPhoneOpen && CurrentComputer)
 	{
 		CurrentComputer->CycleClass();
 	}
+}
+
+void AGCCharacter::TogglePhone()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	if (!PhoneWidget)
+	{
+		PhoneWidget = CreateWidget<UGCPhoneWidget>(PC, UGCPhoneWidget::StaticClass());
+	}
+	if (!PhoneWidget)
+	{
+		return;
+	}
+	if (!PhoneWidget->IsInViewport())
+	{
+		PhoneWidget->AddToViewport(30);
+	}
+
+	const bool bOpenNow = !bPhoneOpen;
+	AGCPlayerState* PlayerState = PC->GetPlayerState<AGCPlayerState>();
+	FString TravelSummary = TEXT("No trip booked. Visit an airport kiosk to explore departures.");
+	int32 WalletBalance = 0;
+	if (PlayerState)
+	{
+		WalletBalance = PlayerState->Money;
+		if (PlayerState->HasActiveTicket())
+		{
+			const FGCFlightTicket& Ticket = PlayerState->ActiveTicket;
+			const TCHAR* Status = Ticket.Status == EGCTicketStatus::Booked ? TEXT("BOOKED — CHECK IN AT AIRPORT")
+				: (Ticket.Status == EGCTicketStatus::CheckedIn ? TEXT("CHECKED IN — BOARD AT GATE")
+					: (Ticket.Status == EGCTicketStatus::Boarded ? TEXT("ON BOARD") : TEXT("TRAVEL COMPLETE")));
+			TravelSummary = FString::Printf(TEXT("%s\n%s (%s) -> %s (%s)\nDEPARTURE  %02d:%02d\nSEAT  %s     GATE  %s\n%s"),
+				*Ticket.FlightNumber, *Ticket.FromCode, *Ticket.FromCity, *Ticket.ToCode, *Ticket.ToCity,
+				FMath::FloorToInt(Ticket.DepartureHour),
+				FMath::FloorToInt((Ticket.DepartureHour - FMath::FloorToFloat(Ticket.DepartureHour)) * 60.0f),
+				Ticket.Seat.IsEmpty() ? TEXT("--") : *Ticket.Seat, *Ticket.Gate, Status);
+		}
+	}
+	PhoneWidget->SetPhoneData(WalletBalance, TravelSummary);
+	PhoneWidget->SetPhoneOpen(bOpenNow);
+	bPhoneOpen = bOpenNow;
+	PC->SetIgnoreMoveInput(bPhoneOpen);
+	PC->SetIgnoreLookInput(bPhoneOpen);
 }
 
 void AGCCharacter::ShowSubtitle(const FString& Text, float DurationSeconds)
@@ -424,6 +478,19 @@ void AGCCharacter::Landed(const FHitResult& Hit)
 
 void AGCCharacter::OnDeath(AActor* Killer)
 {
+	if (bPhoneOpen)
+	{
+		bPhoneOpen = false;
+		if (PhoneWidget)
+		{
+			PhoneWidget->SetPhoneOpen(false);
+		}
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->SetIgnoreMoveInput(false);
+			PC->SetIgnoreLookInput(false);
+		}
+	}
 	StartRagdoll();
 	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AGCCharacter::RespawnAtHospital, 3.0f, false);
 }
