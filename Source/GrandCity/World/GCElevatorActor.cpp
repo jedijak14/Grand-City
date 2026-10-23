@@ -5,6 +5,8 @@
 #include "Components/SceneComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/WidgetComponent.h"
+#include "UI/GCHotelElevatorScreenWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
 AGCElevatorActor::AGCElevatorActor()
@@ -70,6 +72,17 @@ AGCElevatorActor::AGCElevatorActor()
 	DoorSafetySensor->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	DoorSafetySensor->SetGenerateOverlapEvents(true);
 
+	CabinDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("CabinDisplay"));
+	CabinDisplay->SetupAttachment(SceneRoot);
+	CabinDisplay->SetWidgetSpace(EWidgetSpace::World);
+	CabinDisplay->SetDrawSize(FVector2D(720.0f, 440.0f));
+	CabinDisplay->SetRelativeScale3D(FVector(0.1f));
+	CabinDisplay->SetTwoSided(true);
+	CabinDisplay->SetRelativeLocation(FVector(0.0f, -62.0f, 150.0f));
+	CabinDisplay->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	CabinDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CabinDisplay->SetWidgetClass(UGCHotelElevatorScreenWidget::StaticClass());
+
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (Cube.Succeeded())
 	{
@@ -85,7 +98,13 @@ AGCElevatorActor::AGCElevatorActor()
 void AGCElevatorActor::BeginPlay()
 {
 	Super::BeginPlay();
+	BaseFloorZ = GetActorLocation().Z;
 	SetDoorAlpha(0.0f);
+	ScreenWidget = CabinDisplay ? Cast<UGCHotelElevatorScreenWidget>(CabinDisplay->GetUserWidgetObject()) : nullptr;
+	if (ScreenWidget)
+	{
+		ScreenWidget->SetElevatorReadout(1, false, 1);
+	}
 }
 
 bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* DestinationLanding, AGCCharacter* Passenger)
@@ -106,6 +125,7 @@ bool AGCElevatorActor::CallFromLanding(AActor* CallerLanding, AActor* Destinatio
 	RequestedPassenger = Passenger;
 	BoardingFloorZ = CallerLanding->GetActorLocation().Z;
 	DestinationFloorZ = DestinationLanding->GetActorLocation().Z;
+	BaseFloorZ = FMath::Min(BoardingFloorZ, DestinationFloorZ);
 	bGoingToPickupFloor = FMath::Abs(GetActorLocation().Z - BoardingFloorZ) > 5.0f;
 	bAtPickupFloor = !bGoingToPickupFloor;
 	TargetZ = BoardingFloorZ;
@@ -289,5 +309,19 @@ void AGCElevatorActor::Tick(float DeltaSeconds)
 	case EGCElevatorState::Idle:
 	default:
 		break;
+	}
+
+	if (CabinDisplay && !ScreenWidget)
+	{
+		ScreenWidget = Cast<UGCHotelElevatorScreenWidget>(CabinDisplay->GetUserWidgetObject());
+	}
+	if (ScreenWidget)
+	{
+		const float SafeFloorHeight = FMath::Max(100.0f, FloorHeightCm);
+		const int32 CurrentFloor = FMath::RoundToInt((GetActorLocation().Z - BaseFloorZ) / SafeFloorHeight) + 1;
+		const bool bIsMoving = State == EGCElevatorState::Moving;
+		const int32 DestinationFloor = bIsMoving
+			? FMath::RoundToInt((TargetZ - BaseFloorZ) / SafeFloorHeight) + 1 : CurrentFloor;
+		ScreenWidget->SetElevatorReadout(CurrentFloor, bIsMoving, DestinationFloor);
 	}
 }

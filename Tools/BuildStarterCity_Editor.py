@@ -3,6 +3,7 @@
 Run from Unreal Editor: Tools > Execute Python Script. This is a test layout, not
 finished art or evidence of gameplay. Save the generated map after running it.
 """
+import os
 import re
 import unreal
 
@@ -33,6 +34,32 @@ def enum_value(enum_names, value_name):
     raise RuntimeError("Enum value {} not found in {}".format(value_name, enum_type))
 
 
+def import_hotel_reward_logos():
+    source_dir = os.path.join(unreal.Paths.project_dir(), "Resources", "HotelRewards")
+    if not os.path.isdir(source_dir):
+        unreal.log_warning("Hotel reward logo source folder was not found: {}".format(source_dir))
+        return
+
+    filenames = ("T_HiltonHonors.jpg", "T_MarriottBonvoy.jpg", "T_IHGOneRewards.png")
+    tasks = []
+    for filename in filenames:
+        source = os.path.join(source_dir, filename)
+        if not os.path.isfile(source):
+            unreal.log_warning("Hotel reward logo is missing: {}".format(source))
+            continue
+        task = unreal.AssetImportTask()
+        task.filename = source
+        task.destination_path = "/Game/HotelRewards"
+        task.automated = True
+        task.replace_existing = True
+        task.save = True
+        tasks.append(task)
+
+    if tasks:
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(tasks)
+        unreal.EditorAssetLibrary.save_directory("/Game/HotelRewards", only_if_is_dirty=False)
+
+
 def cube(mesh, location, scale, label, rotation=None):
     actor = spawn(unreal.StaticMeshActor, location, rotation)
     component = actor.get_component_by_class(unreal.StaticMeshComponent)
@@ -45,6 +72,8 @@ def cube(mesh, location, scale, label, rotation=None):
 def main():
     if not unreal.EditorLevelLibrary.new_level(MAP_PATH):
         raise RuntimeError("Could not create {}. Create an empty level manually and rerun.".format(MAP_PATH))
+
+    import_hotel_reward_logos()
 
     cube_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube.Cube")
     plane_mesh = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Plane.Plane")

@@ -8,6 +8,8 @@ class AGCCharacter;
 class UBoxComponent;
 class USceneComponent;
 class UStaticMeshComponent;
+class UWidgetComponent;
+class UGCHotelElevatorScreenWidget;
 
 UENUM(BlueprintType)
 enum class EGCElevatorState : uint8
@@ -55,6 +57,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator|Safety")
 	UBoxComponent* DoorSafetySensor;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator|Display")
+	UWidgetComponent* CabinDisplay;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Elevator|Display", meta = (ClampMin = "100.0", ClampMax = "1000.0"))
+	float FloorHeightCm = 300.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Elevator|Motion", meta = (ClampMin = "100.0", ClampMax = "600.0"))
 	float TravelSpeedCmPerSecond = 300.0f;
 
@@ -85,6 +93,9 @@ protected:
 private:
 	TWeakObjectPtr<AActor> RequestedFloor;
 	TWeakObjectPtr<AGCCharacter> RequestedPassenger;
+	UPROPERTY(Transient)
+	TObjectPtr<UGCHotelElevatorScreenWidget> ScreenWidget;
+	float BaseFloorZ = 0.0f;
 	float TargetZ = 0.0f;
 	float BoardingFloorZ = 0.0f;
 	float DestinationFloorZ = 0.0f;

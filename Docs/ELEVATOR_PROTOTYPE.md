@@ -6,8 +6,12 @@ with that trip. If needed, the car first travels to the caller. It opens its spl
 for that player to physically enter the cabin before starting the dwell, closing, and travelling to
 the linked destination. A bounded boarding timeout leaves the car safely open if the caller does
 not board. Its collision floor is a movable component so grounded characters can ride it; split
-doors animate on the car, and an overlap sensor reopens them if a pawn obstructs closing. The
-starter-map builder creates a lobby/roof pair and an open guide-post shaft.
+doors animate on the car, and an overlap sensor reopens them if a pawn obstructs closing. A
+world-space cabin display combines a live floor/direction readout with a timed carousel of the
+Hilton Honors, Marriott Bonvoy, and IHG One Rewards partner marks supplied for this prototype.
+`Tools/BuildStarterCity_Editor.py` imports those source images into `/Game/HotelRewards` so Unreal
+can package them. Confirm rights to use third-party marks before shipping. The starter-map builder
+creates a lobby/roof pair and an open guide-post shaft.
 
 This is a functional prototype, not production elevator engineering or finished architectural art.
 UE compilation and gameplay tests must confirm moving-base carry, overlap ordering at landings,
