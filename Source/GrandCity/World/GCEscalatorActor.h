@@ -35,6 +35,9 @@ public:
 	UInstancedStaticMeshComponent* Treads;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Escalator")
+	UInstancedStaticMeshComponent* TreadDetailVisuals;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Escalator")
 	UBoxComponent* RideTrigger;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escalator|Shape", meta = (ClampMin = "200.0"))
@@ -54,6 +57,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escalator|Geometry")
 	TObjectPtr<UStaticMesh> TreadMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escalator|Geometry")
+	TObjectPtr<UStaticMesh> TreadDetailMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escalator|Geometry")
 	FVector TreadDimensionsCm = FVector(70.0f, 170.0f, 18.0f);
