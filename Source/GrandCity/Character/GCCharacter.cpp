@@ -1,6 +1,8 @@
 #include "Character/GCCharacter.h"
+#include "Character/GCPedestrian.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/GCHealthComponent.h"
 #include "Components/GCParachuteComponent.h"
 #include "Components/GCWeaponComponent.h"
@@ -15,6 +17,7 @@
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "Vehicle/GCAirlinerPawn.h"
 #include "Vehicle/GCSurfboardPawn.h"
@@ -22,6 +25,10 @@
 #include "Vehicle/GCPlanePawn.h"
 #include "Vehicle/GCVehiclePawn.h"
 #include "World/GCComputerTerminalActor.h"
+#include "World/GCRealEstateActor.h"
+#include "World/GCDeviceStoreActor.h"
+#include "World/GCBusStopActor.h"
+#include "Vehicle/GCBusPawn.h"
 #include "World/GCLocationActor.h"
 #include "World/GCOceanManager.h"
 
@@ -42,8 +49,18 @@ AGCCharacter::AGCCharacter()
 	FollowCamera->SetupAttachment(CameraArm);
 	FollowCamera->FieldOfView = 70.0f;
 
+	BodycamCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("BodycamCamera"));
+	BodycamCamera->SetupAttachment(RootComponent);
+	BodycamCamera->SetRelativeLocation(FVector(18.0f, 0.0f, 78.0f));
+	BodycamCamera->FieldOfView = 96.0f;
+	BodycamCamera->bUsePawnControlRotation = true;
+	BodycamCamera->SetAutoActivate(false);
+
 	Weapon = CreateDefaultSubobject<UGCWeaponComponent>(TEXT("Weapon"));
 	Health = CreateDefaultSubobject<UGCHealthComponent>(TEXT("Health"));
+	BreathingAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("HeavyBreathingAudio"));
+	BreathingAudio->SetupAttachment(RootComponent);
+	BreathingAudio->bAutoActivate = false;
 	Parachute = CreateDefaultSubobject<UGCParachuteComponent>(TEXT("Parachute"));
 
 	ParachuteCanopy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ParachuteCanopy"));
@@ -130,6 +147,10 @@ void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("EnterVehicle"), IE_Pressed, this, &AGCCharacter::TryEnterVehicle);
 	PlayerInputComponent->BindAction(TEXT("DeployParachute"), IE_Pressed, this, &AGCCharacter::DeployParachute);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AGCCharacter::ToggleFirstPerson);
+	PlayerInputComponent->BindKey(EKeys::F6, IE_Pressed, this, &AGCCharacter::ToggleBodycam);
+	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &AGCCharacter::CyclePaymentMethod);
+	PlayerInputComponent->BindKey(EKeys::K, IE_Pressed, this, &AGCCharacter::RepayCreditCard);
+	PlayerInputComponent->BindKey(EKeys::G, IE_Pressed, this, &AGCCharacter::TryPickpocket);
 
 	PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AGCCharacter::CycleComputerOffer);
 	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AGCCharacter::CycleComputerClass);
@@ -142,6 +163,10 @@ void AGCCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 void AGCCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bBodycamActive)
+	{
+		BodycamElapsedSeconds += DeltaSeconds;
+	}
 	if (bSeated || Health->IsDead())
 	{
 		return;
@@ -149,6 +174,27 @@ void AGCCharacter::Tick(float DeltaSeconds)
 
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	Move->MaxWalkSpeed = bAiming ? AimWalkSpeed : (bSprinting ? SprintSpeed : WalkSpeed);
+	if (bSprinting && Move->Velocity.Size2D() > 220.0f)
+	{
+		BreathingRecoverySeconds = 3.5f;
+	}
+	else
+	{
+		BreathingRecoverySeconds = FMath::Max(0.0f, BreathingRecoverySeconds - DeltaSeconds);
+	}
+	const bool bNeedsHeavyBreathing = bSprinting || BreathingRecoverySeconds > 0.0f || (Health && Health->Health <= 25.0f);
+	if (BreathingAudio && HeavyBreathingSound)
+	{
+		if (bNeedsHeavyBreathing && !BreathingAudio->IsPlaying())
+		{
+			BreathingAudio->SetSound(HeavyBreathingSound);
+			BreathingAudio->Play();
+		}
+		else if (!bNeedsHeavyBreathing && BreathingAudio->IsPlaying())
+		{
+			BreathingAudio->Stop();
+		}
+	}
 
 	if (Move->IsFalling())
 	{
@@ -270,15 +316,119 @@ void AGCCharacter::ToggleFirstPerson()
 	{
 		CameraArm->SetRelativeLocation(FVector(0.0f, 0.0f, 70.0f));
 	}
-	GetMesh()->SetOwnerNoSee(bFirstPerson);
+	GetMesh()->SetOwnerNoSee(bFirstPerson || bBodycamActive);
+}
+
+void AGCCharacter::ToggleBodycam()
+{
+	AGCPlayerState* PlayerState = GetPlayerState<AGCPlayerState>();
+	if (!PlayerState || PlayerState->CurrentJob != EGCJob::Police)
+	{
+		ShowSubtitle(TEXT("Bodycam access is restricted to on-duty police."), 4.0f);
+		return;
+	}
+
+	bBodycamActive = !bBodycamActive;
+	if (bBodycamActive)
+	{
+		BodycamElapsedSeconds = 0.0f;
+		FollowCamera->SetActive(false);
+		BodycamCamera->SetActive(true);
+		GetMesh()->SetOwnerNoSee(true);
+		ShowSubtitle(TEXT("BODYCAM RECORDING — F6 to return to standard view."), 3.0f);
+	}
+	else
+	{
+		BodycamCamera->SetActive(false);
+		FollowCamera->SetActive(true);
+		GetMesh()->SetOwnerNoSee(bFirstPerson);
+		ShowSubtitle(TEXT("Bodycam view ended."), 2.0f);
+	}
+}
+
+void AGCCharacter::CyclePaymentMethod()
+{
+	if (AGCPlayerState* PS = GetPlayerState<AGCPlayerState>())
+	{
+		PS->CyclePaymentMethod();
+		ShowSubtitle(FString::Printf(TEXT("Payment set to %s. Press P to cycle."), *PS->GetPaymentMethodLabel()), 3.0f);
+	}
+}
+
+void AGCCharacter::RepayCreditCard()
+{
+	if (AGCPlayerState* PS = GetPlayerState<AGCPlayerState>())
+	{
+		const int32 Payment = FMath::Min(500, PS->CreditUsed);
+		if (PS->RepayCreditCard(Payment))
+		{
+			ShowSubtitle(FString::Printf(TEXT("Bayline Credit payment: $%d from digital balance."), Payment), 3.0f);
+		}
+		else
+		{
+			ShowSubtitle(TEXT("No credit balance is due, or your digital balance is too low."), 3.0f);
+		}
+	}
+}
+
+void AGCCharacter::TryPickpocket()
+{
+	if (bSeated || Health->IsDead())
+	{
+		return;
+	}
+	TArray<AActor*> Pedestrians;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGCPedestrian::StaticClass(), Pedestrians);
+	AGCPedestrian* Target = nullptr;
+	float BestDistance = 200.0f;
+	for (AActor* Actor : Pedestrians)
+	{
+		AGCPedestrian* Pedestrian = Cast<AGCPedestrian>(Actor);
+		if (!Pedestrian || Pedestrian->bDead || Pedestrian->bIsPolice || Pedestrian->bHasBeenPickpocketed)
+		{
+			continue;
+		}
+		const float Distance = FVector::DistSquared2D(GetActorLocation(), Pedestrian->GetActorLocation());
+		if (Distance < FMath::Square(BestDistance))
+		{
+			BestDistance = FMath::Sqrt(Distance);
+			Target = Pedestrian;
+		}
+	}
+	if (!Target)
+	{
+		ShowSubtitle(TEXT("No one is close enough to pickpocket. Crouch and approach from behind."), 4.0f);
+		return;
+	}
+	Target->AttemptPickpocket(this);
 }
 
 void AGCCharacter::Interact()
 {
+	if (CurrentBus)
+	{
+		CurrentBus->DisembarkPassenger();
+		return;
+	}
 	// Airport computers take priority over the generic location action.
 	if (CurrentComputer)
 	{
 		CurrentComputer->UseComputer(this);
+		return;
+	}
+	if (CurrentDeviceStore)
+	{
+		CurrentDeviceStore->PurchaseSelected(this);
+		return;
+	}
+	if (CurrentBusStop)
+	{
+		CurrentBusStop->Ride(this);
+		return;
+	}
+	if (CurrentProperty)
+	{
+		CurrentProperty->Interact(this);
 		return;
 	}
 	if (CurrentLocation)
@@ -292,6 +442,14 @@ void AGCCharacter::CycleComputerOffer()
 	if (CurrentComputer)
 	{
 		CurrentComputer->CycleOffer();
+	}
+	else if (CurrentDeviceStore)
+	{
+		CurrentDeviceStore->CycleOffer();
+	}
+	else if (CurrentBusStop)
+	{
+		CurrentBusStop->CycleDestination();
 	}
 }
 
@@ -424,6 +582,17 @@ void AGCCharacter::Landed(const FHitResult& Hit)
 
 void AGCCharacter::OnDeath(AActor* Killer)
 {
+	if (BreathingAudio)
+	{
+		BreathingAudio->Stop();
+	}
+	if (bBodycamActive)
+	{
+		bBodycamActive = false;
+		BodycamCamera->SetActive(false);
+		FollowCamera->SetActive(true);
+		GetMesh()->SetOwnerNoSee(bFirstPerson);
+	}
 	StartRagdoll();
 	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AGCCharacter::RespawnAtHospital, 3.0f, false);
 }

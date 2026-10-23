@@ -62,6 +62,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plane|Aero")
 	float MassKg = 1150.0f;
 
+	/** Enables collective rotor lift for the derived helicopter pawn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft|Rotor")
+	bool bHelicopterMode = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plane|Aero")
 	float WingAreaM2 = 16.0f;
 

@@ -20,6 +20,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loading|Art")
 	TSoftObjectPtr<UTexture2D> BackgroundTexture;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loading|Art")
+	TArray<TSoftObjectPtr<UTexture2D>> BackgroundTextures;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loading")
 	bool bSimulateProgress = true;
 

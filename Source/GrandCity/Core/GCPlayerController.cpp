@@ -2,6 +2,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Character/GCCharacter.h"
 #include "UI/GCLoadingScreenWidget.h"
+#include "UI/GCIdentitySetupWidget.h"
 #include "UI/GCMainMenuWidget.h"
 #include "UI/GCSettingsWidget.h"
 #include "Character/GCPedestrian.h"
@@ -9,6 +10,7 @@
 #include "Components/GCHealthComponent.h"
 #include "Core/GCPlayerState.h"
 #include "EngineUtils.h"
+#include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Vehicle/GCVehiclePawn.h"
 #include "World/GCDayNightManager.h"
@@ -19,15 +21,33 @@ AGCPlayerController::AGCPlayerController()
 	MainMenuClass = UGCMainMenuWidget::StaticClass();
 	SettingsClass = UGCSettingsWidget::StaticClass();
 	LoadingClass = UGCLoadingScreenWidget::StaticClass();
+	IdentitySetupClass = UGCIdentitySetupWidget::StaticClass();
 	bShowMouseCursor = false;
 }
 
 void AGCPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	if (bShowMainMenuOnStart && IsLocalController())
+	if (IsLocalController())
 	{
-		ShowMainMenu();
+		AGCPlayerState* PS = GetPlayerState<AGCPlayerState>();
+		if (!PS || PS->CitizenID.IsEmpty())
+		{
+			ShowIdentitySetup();
+		}
+		else if (bShowMainMenuOnStart)
+		{
+			ShowMainMenu();
+		}
+	}
+}
+
+void AGCPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (InputComponent)
+	{
+		InputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &AGCPlayerController::TogglePauseMenu);
 	}
 }
 
@@ -35,6 +55,17 @@ void AGCPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 	UpdateWantedVisibility(DeltaTime);
+	if (AGCPlayerState* PS = GetPlayerState<AGCPlayerState>())
+	{
+		const int32 Wage = PS->TickJobIncome(DeltaTime);
+		if (Wage > 0)
+		{
+			if (AGCCharacter* Character = Cast<AGCCharacter>(GetPawn()))
+			{
+				Character->ShowSubtitle(FString::Printf(TEXT("Job pay deposited to digital wallet: +$%d."), Wage), 4.0f);
+			}
+		}
+	}
 }
 
 void AGCPlayerController::UpdateWantedVisibility(float DeltaTime)
@@ -200,6 +231,45 @@ void AGCPlayerController::GCRepairVehicle()
 }
 
 // ---------------------------------------------------------------- menus (Phase 2)
+UGCIdentitySetupWidget* AGCPlayerController::EnsureIdentitySetup()
+{
+	if (!IdentitySetupWidget)
+	{
+		if (!IdentitySetupClass)
+		{
+			IdentitySetupClass = UGCIdentitySetupWidget::StaticClass();
+		}
+		IdentitySetupWidget = CreateWidget<UGCIdentitySetupWidget>(this, IdentitySetupClass);
+		if (IdentitySetupWidget)
+		{
+			IdentitySetupWidget->OnIdentitySetupComplete.AddDynamic(this, &AGCPlayerController::HandleIdentitySetupComplete);
+			IdentitySetupWidget->AddToViewport(50);
+			IdentitySetupWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+	return IdentitySetupWidget;
+}
+
+void AGCPlayerController::ShowIdentitySetup()
+{
+	UGCIdentitySetupWidget* Setup = EnsureIdentitySetup();
+	if (!Setup)
+	{
+		return;
+	}
+	if (MainMenuWidget)
+	{
+		MainMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	if (SettingsWidget)
+	{
+		SettingsWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	Setup->SetVisibility(ESlateVisibility::Visible);
+	SetMenuInput(true);
+	SetPause(true);
+}
+
 UGCMainMenuWidget* AGCPlayerController::EnsureMainMenu()
 {
 	if (!MainMenuWidget)
@@ -264,7 +334,9 @@ void AGCPlayerController::SetMenuInput(bool bUI)
 	bShowMouseCursor = bUI;
 	if (bUI)
 	{
-		SetInputMode(FInputModeUIOnly());
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
 	}
 	else
 	{
@@ -283,9 +355,46 @@ void AGCPlayerController::ShowMainMenu()
 	{
 		SettingsWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
+	bPauseMenuOpen = false;
+	Menu->SetPauseMode(false);
 	Menu->SetVisibility(ESlateVisibility::Visible);
 	SetMenuInput(true);
 	SetPause(true);
+}
+
+void AGCPlayerController::ShowPauseMenu()
+{
+	UGCMainMenuWidget* Menu = EnsureMainMenu();
+	if (!Menu)
+	{
+		return;
+	}
+	if (SettingsWidget)
+	{
+		SettingsWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	bPauseMenuOpen = true;
+	Menu->SetPauseMode(true);
+	Menu->SetVisibility(ESlateVisibility::Visible);
+	SetMenuInput(true);
+	SetPause(true);
+}
+
+void AGCPlayerController::TogglePauseMenu()
+{
+	if (!IsLocalController() || (IdentitySetupWidget && IdentitySetupWidget->GetVisibility() == ESlateVisibility::Visible))
+	{
+		return;
+	}
+	if ((MainMenuWidget && MainMenuWidget->GetVisibility() == ESlateVisibility::Visible)
+		|| (SettingsWidget && SettingsWidget->GetVisibility() == ESlateVisibility::Visible))
+	{
+		HideMenus();
+	}
+	else
+	{
+		ShowPauseMenu();
+	}
 }
 
 void AGCPlayerController::ShowSettingsMenu()
@@ -338,14 +447,42 @@ void AGCPlayerController::HideMenus()
 	{
 		LoadingWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
+	if (IdentitySetupWidget)
+	{
+		IdentitySetupWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
 	bReturnToMainOnSettingsClose = false;
+	bPauseMenuOpen = false;
 	SetPause(false);
 	SetMenuInput(false);
 }
 
 void AGCPlayerController::HandleMenuPlay()
 {
+	if (AGCPlayerState* PS = GetPlayerState<AGCPlayerState>(); !PS || PS->CitizenID.IsEmpty())
+	{
+		ShowIdentitySetup();
+		return;
+	}
 	HideMenus();
+}
+
+void AGCPlayerController::HandleIdentitySetupComplete()
+{
+	if (IdentitySetupWidget)
+	{
+		IdentitySetupWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	if (bShowMainMenuOnStart)
+	{
+		ShowMainMenu();
+	}
+	else
+	{
+		bPauseMenuOpen = false;
+		SetPause(false);
+		SetMenuInput(false);
+	}
 }
 
 void AGCPlayerController::HandleMenuSettings()
@@ -362,7 +499,15 @@ void AGCPlayerController::HandleSettingsClosed()
 	if (bReturnToMainOnSettingsClose)
 	{
 		bReturnToMainOnSettingsClose = false;
-		ShowMainMenu();
+		if (bPauseMenuOpen)
+		{
+			ShowPauseMenu();
+		}
+		else
+		{
+			bReturnToMainOnSettingsClose = false;
+			ShowMainMenu();
+		}
 	}
 	else
 	{

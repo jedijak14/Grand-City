@@ -1,5 +1,6 @@
 #include "Vehicle/GCVehiclePawn.h"
 #include "Character/GCCharacter.h"
+#include "Character/GCPedestrian.h"
 #include "Components/GCDeformationComponent.h"
 #include "Components/GCHealthComponent.h"
 #include "Components/GCSkidmarkComponent.h"
@@ -13,6 +14,8 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/DamageType.h"
+#include "Kismet/GameplayStatics.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "ProceduralMeshComponent.h"
@@ -759,6 +762,21 @@ void AGCVehiclePawn::OnBodyHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 	}
 
 	TakeDamage(Severity * 120.0f, FDamageEvent(), nullptr, OtherActor);
+
+	if (AGCPedestrian* Pedestrian = Cast<AGCPedestrian>(OtherActor); Pedestrian && !Pedestrian->bDead)
+	{
+		const float PedestrianDamage = FMath::GetMappedRangeValueClamped(
+			FVector2D(450.0f, 2800.0f), FVector2D(0.0f, 150.0f), ClosingSpeed);
+		if (PedestrianDamage > 0.0f)
+		{
+			UGameplayStatics::ApplyDamage(Pedestrian, PedestrianDamage, GetController(), this, UDamageType::StaticClass());
+		}
+		if (!Pedestrian->bDead && ClosingSpeed >= 760.0f)
+		{
+			Pedestrian->KnockDown(FMath::GetMappedRangeValueClamped(
+				FVector2D(760.0f, 2600.0f), FVector2D(1.4f, 4.0f), ClosingSpeed));
+		}
+	}
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{

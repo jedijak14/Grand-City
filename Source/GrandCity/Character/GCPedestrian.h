@@ -7,6 +7,9 @@
 class UGCHealthComponent;
 class UGCWeaponComponent;
 class UGCVoiceLineComponent;
+class USoundBase;
+class UNiagaraSystem;
+class AGCCharacter;
 
 /** Civilian or on-foot police NPC. Behaviour lives in AGCPedAIController. */
 UCLASS(Blueprintable)
@@ -28,6 +31,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pedestrian")
 	UGCVoiceLineComponent* Voice;
 
+	/** Assign a suitable nonverbal panic clip in the pedestrian Blueprint; voice line subtitles remain the fallback. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Pedestrian|Audio")
+	USoundBase* PanicScreamSound = nullptr;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pedestrian")
 	bool bIsPolice = false;
 
@@ -39,6 +46,24 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Pedestrian")
 	bool bDead = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pedestrian|Wallet", meta = (ClampMin = "0"))
+	int32 WalletCash = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Pedestrian|Wallet")
+	bool bHasBeenPickpocketed = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Pedestrian|State")
+	bool bKnockedDown = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pedestrian|Props")
+	bool bHoldingCoffee = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Pedestrian|Audio")
+	USoundBase* CoffeeSpillSound = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Pedestrian|FX")
+	UNiagaraSystem* CoffeeSpillFX = nullptr;
 
 	UFUNCTION(BlueprintCallable, Category = "Pedestrian")
 	void FleeFrom(const FVector& DangerLocation);
@@ -55,6 +80,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pedestrian")
 	void FireAtActor(AActor* Target);
 
+	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Crime")
+	bool AttemptPickpocket(AGCCharacter* Thief);
+
+	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Crime")
+	bool CanWitnessCrimeAt(const FVector& IncidentLocation) const;
+
+	void ReactToWitnessedCrime(const FVector& IncidentLocation, bool bScream);
+
+	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Reaction")
+	void KnockDown(float DurationSeconds = 2.5f);
+
 	void StartRagdoll();
 
 protected:
@@ -63,5 +99,7 @@ protected:
 
 private:
 	float NextAmbientVoiceTime = 0.0f;
+	FTimerHandle KnockdownTimer;
+	void RecoverFromKnockdown();
 	void ShowSubtitleToNearbyPlayer(const FString& Text) const;
 };

@@ -11,8 +11,14 @@ class UGCHealthComponent;
 class UGCParachuteComponent;
 class UStaticMeshComponent;
 class USkeletalMeshComponent;
+class UAudioComponent;
+class USoundBase;
 class AGCLocationActor;
 class AGCComputerTerminalActor;
+class AGCRealEstateActor;
+class AGCDeviceStoreActor;
+class AGCBusStopActor;
+class AGCBusPawn;
 class AGCOceanManager;
 
 /**
@@ -43,11 +49,27 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Camera")
 	UCameraComponent* FollowCamera;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Camera")
+	UCameraComponent* BodycamCamera;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	bool bBodycamActive = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	float BodycamElapsedSeconds = 0.0f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	UGCWeaponComponent* Weapon;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	UGCHealthComponent* Health;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Audio")
+	UAudioComponent* BreathingAudio;
+
+	/** Assign an original breathing loop in a character Blueprint; plays while sprinting/recovering or at critical health. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Audio")
+	USoundBase* HeavyBreathingSound = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	UGCParachuteComponent* Parachute;
@@ -88,6 +110,18 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
 	AGCComputerTerminalActor* CurrentComputer = nullptr;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	AGCRealEstateActor* CurrentProperty = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	AGCDeviceStoreActor* CurrentDeviceStore = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	AGCBusStopActor* CurrentBusStop = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
+	AGCBusPawn* CurrentBus = nullptr;
+
 	/** Voice-line subtitle currently on screen (set by terminals/NPCs/airliner). */
 	UPROPERTY(BlueprintReadOnly, Category = "Character|State")
 	FString CurrentSubtitle;
@@ -103,6 +137,10 @@ public:
 
 	void SetCurrentLocation(AGCLocationActor* Location) { CurrentLocation = Location; }
 	void SetCurrentComputer(AGCComputerTerminalActor* Computer) { CurrentComputer = Computer; }
+	void SetCurrentProperty(AGCRealEstateActor* Property) { CurrentProperty = Property; }
+	void SetCurrentDeviceStore(AGCDeviceStoreActor* Store) { CurrentDeviceStore = Store; }
+	void SetCurrentBusStop(AGCBusStopActor* BusStop) { CurrentBusStop = BusStop; }
+	void SetCurrentBus(AGCBusPawn* Bus) { CurrentBus = Bus; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void ShowSubtitle(const FString& Text, float DurationSeconds = 4.0f);
@@ -128,6 +166,7 @@ private:
 	bool bFirstPerson = false;
 	float LastFallSpeed = 0.0f;
 	float ScanTimer = 0.0f;
+	float BreathingRecoverySeconds = 0.0f;
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	FTimerHandle RespawnTimer;
 
@@ -149,6 +188,10 @@ private:
 	void TryEnterVehicle();
 	void DeployParachute();
 	void ToggleFirstPerson();
+	void ToggleBodycam();
+	void CyclePaymentMethod();
+	void RepayCreditCard();
+	void TryPickpocket();
 	void EquipPistol();
 	void EquipRifle();
 	void EquipSMG();

@@ -1,9 +1,9 @@
-# Hotel rewards display source images
+# Fictional hotel campaign source art
 
-These three raster images were supplied by the user as visual references for the in-cabin hotel display:
+These concept images are for the in-cabin elevator screen and depict original fictional hotel brands:
 
-- `T_HiltonHonors.jpg`
-- `T_MarriottBonvoy.jpg`
-- `T_IHGOneRewards.png`
+- `T_TidehouseHotels.png`
+- `T_MeridianHouse.png`
+- `T_AstaraGrand.png`
 
-`Tools/BuildStarterCity_Editor.py` imports them into `/Game/HotelRewards` for the prototype elevator-screen carousel. The Hilton, Marriott, and IHG names and marks are owned by their respective rights holders. This inclusion is for the user's requested prototype; obtain permission or replace them with licensed/in-universe artwork before public or commercial release.
+`Tools/BuildStarterCity_Editor.py` imports the images into `/Game/HotelRewards` for the prototype carousel. These are generated campaign concepts, not final in-engine hotel assets or licensed real-world branding. The ads cycle in the elevator widget while the floor display and selection feedback remain active.

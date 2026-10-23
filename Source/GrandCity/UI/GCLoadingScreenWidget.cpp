@@ -19,7 +19,12 @@ UGCLoadingScreenWidget::UGCLoadingScreenWidget(const FObjectInitializer& ObjectI
 	: Super(ObjectInitializer)
 {
 	BackgroundTexture = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
-		TEXT("/Game/GrandCity/UI/LoadingScreenBackdrop.LoadingScreenBackdrop")));
+		TEXT("/Game/Gridlock/UI/gridlock-loading-coast.gridlock-loading-coast")));
+	BackgroundTextures = {
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Gridlock/UI/gridlock-loading-coast.gridlock-loading-coast"))),
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Gridlock/UI/gridlock-loading-rain.gridlock-loading-rain"))),
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Gridlock/UI/gridlock-loading-harbor.gridlock-loading-harbor")))
+	};
 }
 
 namespace
@@ -33,7 +38,17 @@ namespace
 void UGCLoadingScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	UTexture2D* LoadedBackground = BackgroundTexture.LoadSynchronous();
+	static int32 LastBackgroundIndex = INDEX_NONE;
+	UTexture2D* LoadedBackground = nullptr;
+	if (!BackgroundTextures.IsEmpty())
+	{
+		LastBackgroundIndex = (LastBackgroundIndex + 1) % BackgroundTextures.Num();
+		LoadedBackground = BackgroundTextures[LastBackgroundIndex].LoadSynchronous();
+	}
+	if (!LoadedBackground)
+	{
+		LoadedBackground = BackgroundTexture.LoadSynchronous();
+	}
 	if (!WidgetTree)
 	{
 		return;
@@ -95,7 +110,7 @@ void UGCLoadingScreenWidget::NativeConstruct()
 
 	UVerticalBox* BrandStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UTextBlock* Brand = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	Brand->SetText(FText::FromString(TEXT("GRAND  /  CITY")));
+	Brand->SetText(FText::FromString(TEXT("GRIDLOCK")));
 	Brand->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 28));
 	Brand->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	BrandStack->AddChildToVerticalBox(Brand);

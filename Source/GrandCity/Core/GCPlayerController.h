@@ -8,6 +8,7 @@ class AGCVehiclePawn;
 class UGCMainMenuWidget;
 class UGCSettingsWidget;
 class UGCLoadingScreenWidget;
+class UGCIdentitySetupWidget;
 
 /**
  * Player controller: wanted-decay visibility checks + dev console commands.
@@ -23,6 +24,7 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
+	virtual void SetupInputComponent() override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Dev")
 	TSubclassOf<AGCVehiclePawn> DefaultVehicleClass;
@@ -35,6 +37,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UGCLoadingScreenWidget> LoadingClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UGCIdentitySetupWidget> IdentitySetupClass;
 
 	/** Main menu is opt-in for test maps: run GCMenu, or enable this in a BP child. */
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
@@ -92,7 +97,10 @@ public:
 
 private:
 	float WantedCheckTimer = 0.0f;
+	bool bPauseMenuOpen = false;
 	void UpdateWantedVisibility(float DeltaTime);
+	void TogglePauseMenu();
+	void ShowPauseMenu();
 
 	UPROPERTY(Transient)
 	UGCMainMenuWidget* MainMenuWidget = nullptr;
@@ -102,6 +110,12 @@ private:
 
 	UPROPERTY(Transient)
 	UGCLoadingScreenWidget* LoadingWidget = nullptr;
+
+	UPROPERTY(Transient)
+	UGCIdentitySetupWidget* IdentitySetupWidget = nullptr;
+
+	UGCIdentitySetupWidget* EnsureIdentitySetup();
+	void ShowIdentitySetup();
 
 	bool bReturnToMainOnSettingsClose = false;
 	FTimerHandle LoadingTimer;
@@ -115,6 +129,9 @@ private:
 
 	UFUNCTION()
 	void HandleMenuPlay();
+
+	UFUNCTION()
+	void HandleIdentitySetupComplete();
 
 	UFUNCTION()
 	void HandleMenuSettings();

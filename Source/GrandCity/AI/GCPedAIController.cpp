@@ -175,7 +175,7 @@ void AGCPedAIController::UpdatePolice(float DeltaSeconds)
 void AGCPedAIController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!Ped || Ped->bDead)
+	if (!Ped || Ped->bDead || Ped->bKnockedDown)
 	{
 		return;
 	}
