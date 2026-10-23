@@ -84,6 +84,9 @@ void AGCLocationActor::OnTriggerBegin(UPrimitiveComponent* Overlapped, AActor* O
 	if (AGCCharacter* Character = Cast<AGCCharacter>(Other))
 	{
 		Character->SetCurrentLocation(this);
+		const FString Prompt = FString::Printf(TEXT("%s — Press F: %s"),
+			*DisplayName.ToString(), *InteractionText.ToString());
+		Character->ShowSubtitle(Prompt, 4.0f);
 	}
 }
 
@@ -110,10 +113,23 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 	switch (LocationType)
 	{
 	case EGCLocationType::Hospital:
-		if (!PS || PS->SpendMoney(HealCost))
+		if (!Character->Health)
 		{
-			Character->Health->Heal(Character->Health->MaxHealth);
+			Character->ShowSubtitle(TEXT("Medical services are temporarily unavailable."), 4.0f);
+			break;
 		}
+		if (Character->Health->Health >= Character->Health->MaxHealth)
+		{
+			Character->ShowSubtitle(TEXT("You're already at full health."), 4.0f);
+			break;
+		}
+		if (PS && !PS->SpendMoney(HealCost))
+		{
+			Character->ShowSubtitle(FString::Printf(TEXT("Treatment costs $%d. You don't have enough cash."), HealCost), 4.0f);
+			break;
+		}
+		Character->Health->Heal(Character->Health->MaxHealth);
+		Character->ShowSubtitle(TEXT("Treatment complete. You're back to full health."), 4.0f);
 		break;
 
 	case EGCLocationType::Shop:
@@ -121,7 +137,8 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 		const float Now = GetWorld()->GetTimeSeconds();
 		if (Now < NextRobTime)
 		{
-			return; // till is empty / heat is on
+			Character->ShowSubtitle(TEXT("The till is empty and the heat is on. Try again later."), 4.0f);
+			return;
 		}
 		NextRobTime = Now + RobCooldownSeconds;
 		if (PS)
@@ -146,10 +163,20 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 	}
 
 	case EGCLocationType::PoliceStation:
-		if (PS)
+		if (!PS || PS->WantedStars <= 0)
 		{
-			PS->SpendMoney(300 * FMath::Max(1, PS->WantedStars));
+			Character->ShowSubtitle(TEXT("You're not wanted. The station has nothing to process."), 4.0f);
+			break;
+		}
+		{
+			const int32 Fine = 300 * PS->WantedStars;
+			if (!PS->SpendMoney(Fine))
+			{
+				Character->ShowSubtitle(FString::Printf(TEXT("Your fine is $%d. You don't have enough cash."), Fine), 4.0f);
+				break;
+			}
 			PS->ClearWanted();
+			Character->ShowSubtitle(FString::Printf(TEXT("Fine paid: $%d. You're clear."), Fine), 4.0f);
 		}
 		break;
 
@@ -170,38 +197,63 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 			break;
 		}
 		// Legacy quick-flight fallback for maps without terminals/airliners.
-		if (FlightDestination && PS && PS->SpendMoney(FlightCost))
+		if (!FlightDestination)
 		{
-			// Booked passenger flight (cutaway). Piloting your own plane is the other way there.
-			if (PC)
-			{
-				PC->ClientSetCameraFade(true, FColor::Black, FVector2D(0.0f, 1.0f), 0.4f, true);
-			}
-			const FVector DestLoc = FlightDestination->GetActorLocation()
-				+ FlightDestination->GetActorForwardVector() * 500.0f + FVector(0, 0, 140.0f);
-			Character->SetActorLocation(DestLoc, false, nullptr, ETeleportType::TeleportPhysics);
-			if (PC)
-			{
-				PC->ClientSetCameraFade(false, FColor::Black, FVector2D(1.0f, 0.0f), 1.2f, false);
-			}
+			Character->ShowSubtitle(TEXT("No destination is linked to this airport."), 4.0f);
+			break;
+		}
+		if (!PS || !PS->SpendMoney(FlightCost))
+		{
+			Character->ShowSubtitle(FString::Printf(TEXT("The ticket costs $%d. You don't have enough cash."), FlightCost), 4.0f);
+			break;
+		}
+		// Booked passenger flight (cutaway). Piloting your own plane is the other way there.
+		if (PC)
+		{
+			PC->ClientSetCameraFade(true, FColor::Black, FVector2D(0.0f, 1.0f), 0.4f, true);
+		}
+		const FVector DestLoc = FlightDestination->GetActorLocation()
+			+ FlightDestination->GetActorForwardVector() * 500.0f + FVector(0, 0, 140.0f);
+		Character->SetActorLocation(DestLoc, false, nullptr, ETeleportType::TeleportPhysics);
+		if (PC)
+		{
+			PC->ClientSetCameraFade(false, FColor::Black, FVector2D(1.0f, 0.0f), 1.2f, false);
 		}
 		break;
 	}
 
 	case EGCLocationType::Marina:
-		if (RentalBoatClass && PS && PS->SpendMoney(BoatRentalCost))
+		if (!RentalBoatClass)
+		{
+			Character->ShowSubtitle(TEXT("Boat rentals are unavailable here."), 4.0f);
+			break;
+		}
+		if (!PS || !PS->SpendMoney(BoatRentalCost))
+		{
+			Character->ShowSubtitle(FString::Printf(TEXT("Boat rental costs $%d. You don't have enough cash."), BoatRentalCost), 4.0f);
+			break;
+		}
 		{
 			const FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 900.0f + FVector(0, 0, 60.0f);
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-			GetWorld()->SpawnActor<AGCBoatPawn>(RentalBoatClass, SpawnLoc, GetActorRotation(), Params);
+			AGCBoatPawn* Boat = GetWorld()->SpawnActor<AGCBoatPawn>(RentalBoatClass, SpawnLoc, GetActorRotation(), Params);
+			if (!Boat)
+			{
+				PS->AddMoney(BoatRentalCost);
+				Character->ShowSubtitle(TEXT("The rental could not be spawned. Your money was refunded."), 4.0f);
+			}
+			else
+			{
+				Character->ShowSubtitle(TEXT("Boat rental paid. Your boat is ready at the marina."), 4.0f);
+			}
 		}
 		break;
 
 	case EGCLocationType::SkyscraperElevator:
 		if (ElevatorActor && TeleportDestination)
 		{
-			if (!ElevatorActor->CallFromLanding(this, TeleportDestination))
+			if (!ElevatorActor->CallFromLanding(this, TeleportDestination, Character))
 			{
 				Character->ShowSubtitle(TEXT("Elevator is moving or the destination is unavailable."), 3.0f);
 			}
@@ -211,6 +263,10 @@ void AGCLocationActor::Interact(AGCCharacter* Character)
 			// Compatibility for older maps; link an AGCElevatorActor to get animated transport.
 			Character->SetActorLocation(TeleportDestination->GetActorLocation() + FVector(0, 0, 120.0f),
 				false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		else
+		{
+			Character->ShowSubtitle(TEXT("This elevator landing has no linked destination."), 4.0f);
 		}
 		break;
 	}

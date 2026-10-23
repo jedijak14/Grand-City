@@ -23,6 +23,7 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Escalator")
 	USceneComponent* SceneRoot;
@@ -61,11 +62,20 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	struct FRiderState
+	{
+		TWeakObjectPtr<ACharacter> Character;
+		uint8 PreviousMovementMode = 0;
+		uint8 PreviousCustomMovementMode = 0;
+		float PreviousMaxFlySpeed = 0.0f;
+	};
+
 	float TreadPhaseCm = 0.0f;
-	TArray<TWeakObjectPtr<ACharacter>> Riders;
+	TArray<FRiderState> Riders;
 
 	void RebuildPathAndTreads();
 	void UpdateTreadTransforms();
+	void RestoreRider(int32 Index);
 
 	UFUNCTION()
 	void OnRideBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
